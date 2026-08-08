@@ -1,494 +1,330 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import {
-  ArrowDownRight,
-  ArrowUpRight,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Layers,
-  PieChart as PieIcon,
-} from "lucide-react";
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { useEffect, useRef, useState } from "react";
+import { Bot, CheckCircle2, Cpu, Sparkles, Square } from "lucide-react";
 
-import { PageHeader } from "@/components/riccos/app-shell";
-import { useRiccos } from "@/components/riccos/store";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { formatBRL, formatDate, summarize } from "@/lib/finance-data";
+import { useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Visão Geral — RiccOS | Gestão financeira pessoal" },
-      {
-        name: "description",
-        content:
-          "Painel do RiccOS com entradas, saídas, balanço, pendências e gastos por categoria do mês.",
-      },
-      { property: "og:title", content: "Visão Geral — RiccOS" },
-      {
-        property: "og:description",
-        content: "Leia rapidamente entradas, saídas, balanço e vencimentos do mês no RiccOS.",
-      },
+      { title: "RiccOS — Central AI" },
+      { name: "description", content: "Assistente por voz futurista RiccOS." },
     ],
   }),
-  component: Overview,
+  component: RiccOSFuturisticRobotPage,
 });
 
-const chartColors = [
-  "#6366F1",
-  "#EC4899",
-  "#10B981",
-  "#F59E0B",
-  "#8B5CF6",
-  "#3B82F6",
-  "#EF4444",
-  "#14B8A6",
-  "#F97316",
-  "#06B6D4",
-];
+const WEBHOOK_URL =
+  "https://n8n.omniautomacoes.com.br/webhook/bca0b9cf-0dd8-4974-bf67-e4f75d4b25a6";
 
-function SummaryCard({
-  label,
-  value,
-  hint,
-  tone,
-  icon: Icon,
-}: {
-  label: string;
-  value: number;
-  hint: string;
-  tone: "success" | "danger" | "warning" | "neutral";
-  icon: React.ElementType;
-}) {
-  const toneClass =
-    tone === "success"
-      ? "text-success"
-      : tone === "danger"
-        ? "text-danger"
-        : tone === "warning"
-          ? "text-warning font-semibold"
-          : "text-foreground";
-  const bubble =
-    tone === "success"
-      ? "bg-success-soft text-success"
-      : tone === "danger"
-        ? "bg-danger-soft text-danger"
-        : tone === "warning"
-          ? "bg-warning-soft text-warning"
-          : "bg-secondary text-secondary-foreground";
+type RobotState = "idle" | "recording" | "processing" | "success" | "error";
 
-  return (
-    <Card className="shadow-none">
-      <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 pb-2">
-        <div className="min-w-0">
-          <CardDescription className="truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {label}
-          </CardDescription>
-          <CardTitle className={`mt-2 text-2xl font-bold tabular-nums ${toneClass}`}>
-            {formatBRL(value)}
-          </CardTitle>
-        </div>
-        <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${bubble}`}>
-          <Icon className="size-4" />
-        </span>
-      </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </CardContent>
-    </Card>
-  );
-}
+function RiccOSFuturisticRobotPage() {
+  const { user, profile } = useAuth();
+  const [state, setState] = useState<RobotState>("idle");
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-function Overview() {
-  const { monthTransactions } = useRiccos();
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  const { entradas, saidas, pendente, pago } = useMemo(() => {
-    const summary = summarize(monthTransactions);
-    const totalPago = monthTransactions
-      .filter((tx) => tx.type === "despesa" && tx.status === "pago")
-      .reduce((acc, tx) => acc + tx.amount, 0);
+  const startTimer = () => {
+    setTimerSeconds(0);
+    timerIntervalRef.current = setInterval(() => {
+      setTimerSeconds((prev) => prev + 1);
+    }, 1000);
+  };
 
-    return {
-      ...summary,
-      pago: totalPago,
-    };
-  }, [monthTransactions]);
+  const stopTimer = () => {
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
+  };
 
-  // Agrupamento por Categoria e Subcategoria do Mês Ativo
-  const categoryBreakdown = useMemo(() => {
-    const catMap = new Map<string, { total: number; subMap: Map<string, number> }>();
+  const stopStream = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+  };
 
-    monthTransactions.forEach((tx) => {
-      if (tx.type !== "despesa") return;
+  const startRecording = async () => {
+    setErrorMessage(null);
 
-      const cat = tx.category || "Outros";
-      const sub = tx.subcategory?.trim() || "Geral";
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
 
-      if (!catMap.has(cat)) {
-        catMap.set(cat, { total: 0, subMap: new Map() });
+      let mimeType = "audio/webm";
+      if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+        mimeType = "audio/webm;codecs=opus";
+      } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+        mimeType = "audio/mp4";
       }
-      const catObj = catMap.get(cat)!;
-      catObj.total += tx.amount;
-      catObj.subMap.set(sub, (catObj.subMap.get(sub) || 0) + tx.amount);
-    });
 
-    const totalSpent = Array.from(catMap.values()).reduce((a, b) => a + b.total, 0);
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
 
-    const list = Array.from(catMap.entries())
-      .map(([name, obj], index) => {
-        const percentage = totalSpent > 0 ? (obj.total / totalSpent) * 100 : 0;
-        const subcategories = Array.from(obj.subMap.entries())
-          .map(([subName, subAmount]) => ({
-            name: subName,
-            amount: subAmount,
-            percentageOfCategory: obj.total > 0 ? (subAmount / obj.total) * 100 : 0,
-          }))
-          .sort((a, b) => b.amount - a.amount);
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
 
-        return {
-          name,
-          amount: obj.total,
-          percentage,
-          subcategories,
-          color: chartColors[index % chartColors.length],
-        };
-      })
-      .sort((a, b) => b.amount - a.amount);
+      mediaRecorder.onstop = async () => {
+        stopTimer();
+        stopStream();
+        await sendAudioToWebhook();
+      };
 
-    return { list, totalSpent };
-  }, [monthTransactions]);
-
-  const toggleCategory = (categoryName: string) => {
-    setExpandedCategories((prev) => ({
-      ...prev,
-      [categoryName]: !prev[categoryName],
-    }));
+      mediaRecorder.start(200);
+      setState("recording");
+      startTimer();
+    } catch (err: any) {
+      console.error("Erro ao acessar microfone:", err);
+      setState("error");
+      setErrorMessage("Permissão de microfone não concedida.");
+    }
   };
 
-  const allExpanded = useMemo(() => {
-    if (categoryBreakdown.list.length === 0) return false;
-    return categoryBreakdown.list.every((item) => expandedCategories[item.name]);
-  }, [categoryBreakdown, expandedCategories]);
-
-  const toggleExpandAll = () => {
-    const nextState: Record<string, boolean> = {};
-    const shouldExpand = !allExpanded;
-    categoryBreakdown.list.forEach((item) => {
-      nextState[item.name] = shouldExpand;
-    });
-    setExpandedCategories(nextState);
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+      setState("processing");
+    }
   };
 
-  const upcoming = useMemo(() => {
-    return monthTransactions
-      .filter((tx) => tx.type === "despesa")
-      .sort((a, b) => {
-        if (a.status !== b.status) return a.status === "pendente" ? -1 : 1;
-        return a.date.localeCompare(b.date);
-      })
-      .slice(0, 10);
-  }, [monthTransactions]);
+  const sendAudioToWebhook = async () => {
+    try {
+      const rawBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+      const mp3File = new File([rawBlob], "comando_voz.mp3", { type: "audio/mp3" });
 
-  const expensePercentage = entradas > 0 ? Math.min(Math.round((saidas / entradas) * 100), 100) : 0;
+      const formData = new FormData();
+      formData.append("file", mp3File, "comando_voz.mp3");
+      formData.append("user_id", user?.id || "");
+      formData.append("user_name", profile?.user_nome || "Usuário RiccOS");
+      formData.append("duration_seconds", String(timerSeconds));
+      formData.append("created_at", new Date().toISOString());
+
+      const response = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Status ${response.status}`);
+      }
+
+      setState("success");
+      setTimeout(() => {
+        setState("idle");
+      }, 4000);
+    } catch (err: any) {
+      console.error("Erro ao enviar webhook:", err);
+      setState("error");
+      setErrorMessage("Erro de conexão ao enviar comando.");
+      setTimeout(() => {
+        setState("idle");
+      }, 4000);
+    }
+  };
+
+  const handleRobotClick = () => {
+    if (state === "idle" || state === "success" || state === "error") {
+      startRecording();
+    } else if (state === "recording") {
+      stopRecording();
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopTimer();
+      stopStream();
+    };
+  }, []);
+
+  const formatTimer = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader
-        title="Visão Geral"
-        description="Resumo consolidado do mês selecionado, com foco em leitura rápida."
-        showBalance={false}
-      />
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          label="Entradas (Receitas)"
-          value={entradas}
-          tone="success"
-          icon={ArrowUpRight}
-          hint="Receitas lançadas no mês"
-        />
-        <SummaryCard
-          label="Saídas (Despesas)"
-          value={saidas}
-          tone="danger"
-          icon={ArrowDownRight}
-          hint="Despesas totais no mês"
-        />
-        <SummaryCard
-          label="Total Pendente"
-          value={pendente}
-          tone="warning"
-          icon={Clock}
-          hint="Contas a vencer no mês"
-        />
-        <SummaryCard
-          label="Total Pago"
-          value={pago}
-          tone="success"
-          icon={CheckCircle2}
-          hint="Despesas já liquidadas"
+    <div className="flex min-h-[calc(100vh-6rem)] flex-col items-center justify-center relative overflow-hidden select-none">
+      {/* GLOW DE FUNDO FUTURISTA */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div
+          className={`size-[500px] rounded-full blur-3xl transition-all duration-700 opacity-20 ${
+            state === "recording"
+              ? "bg-red-500 scale-125 opacity-40"
+              : state === "processing"
+                ? "bg-amber-400 scale-110 opacity-30"
+                : state === "success"
+                  ? "bg-emerald-500 scale-110 opacity-30"
+                  : "bg-indigo-500 hover:scale-105"
+          }`}
         />
       </div>
 
-      {entradas > 0 && (
-        <Card className="shadow-none">
-          <CardContent className="p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Comprometimento da Renda
+      {/* CONTAINER DO ROBÔ */}
+      <div className="relative z-10 flex flex-col items-center justify-center">
+        {/* NÚCLEO DO ROBÔ FUTURISTA COM ANÉIS HOLOGRÁFICOS */}
+        <div className="relative flex items-center justify-center cursor-pointer group" onClick={handleRobotClick}>
+          {/* Anel Externo Rotação 1 */}
+          <div
+            className={`absolute size-64 sm:size-80 rounded-full border border-dashed transition-all duration-700 ${
+              state === "recording"
+                ? "border-red-500/60 animate-[spin_4s_linear_infinite]"
+                : state === "processing"
+                  ? "border-amber-400/80 animate-[spin_2s_linear_infinite]"
+                  : state === "success"
+                    ? "border-emerald-500/60"
+                    : "border-cyan-500/30 group-hover:border-cyan-400/60 animate-[spin_12s_linear_infinite]"
+            }`}
+          />
+
+          {/* Anel Intermediário Pulsação */}
+          <div
+            className={`absolute size-52 sm:size-64 rounded-full border transition-all duration-500 ${
+              state === "recording"
+                ? "border-red-500/80 animate-ping"
+                : state === "processing"
+                  ? "border-amber-400/60 animate-pulse"
+                  : state === "success"
+                    ? "border-emerald-400/60"
+                    : "border-indigo-500/30 group-hover:scale-110"
+            }`}
+          />
+
+          {/* Anel Interno Neon */}
+          <div
+            className={`absolute size-40 sm:size-52 rounded-full border-2 transition-all duration-500 ${
+              state === "recording"
+                ? "border-red-500 shadow-[0_0_40px_rgba(239,68,68,0.6)]"
+                : state === "processing"
+                  ? "border-amber-400 shadow-[0_0_40px_rgba(251,191,36,0.6)]"
+                  : state === "success"
+                    ? "border-emerald-400 shadow-[0_0_40px_rgba(52,211,153,0.6)]"
+                    : "border-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.3)] group-hover:shadow-[0_0_50px_rgba(34,211,238,0.5)]"
+            }`}
+          />
+
+          {/* ESFERA CENTRAL DO ROBÔ COM ANIMAÇÃO DE LEVITAÇÃO */}
+          <div
+            className={`relative z-20 flex size-32 sm:size-40 items-center justify-center rounded-full transition-all duration-500 shadow-2xl backdrop-blur-xl ${
+              state === "recording"
+                ? "bg-gradient-to-br from-red-600 to-rose-900 text-white scale-110 ring-4 ring-red-500/40"
+                : state === "processing"
+                  ? "bg-gradient-to-br from-amber-500 to-yellow-700 text-white scale-105"
+                  : state === "success"
+                    ? "bg-gradient-to-br from-emerald-500 to-teal-800 text-white scale-105"
+                    : "bg-gradient-to-br from-indigo-900 via-slate-900 to-cyan-950 text-cyan-400 animate-[bounce_4s_ease-in-out_infinite] group-hover:scale-105"
+            }`}
+          >
+            {state === "recording" ? (
+              <div className="flex flex-col items-center gap-1">
+                <Square className="size-10 fill-current animate-pulse text-white" />
+                <span className="text-[10px] font-bold tracking-widest uppercase text-white/90">
+                  Parar
                 </span>
-                <p className="text-sm font-medium">
-                  {expensePercentage}% das receitas do mês estão comprometidas com despesas.
-                </p>
               </div>
-              <span className="text-lg font-bold tabular-nums">
-                {formatBRL(saidas)} / {formatBRL(entradas)}
-              </span>
-            </div>
-            <Progress value={expensePercentage} className="mt-3 h-2.5" />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Gastos por Categoria e Subcategoria */}
-      <Card className="shadow-none">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="size-5 text-primary" />
-              <span>Gastos por Categoria e Subcategoria</span>
-            </CardTitle>
-            <CardDescription className="mt-1">
-              Distribuição do consumo e detalhamento das subcategorias do mês
-            </CardDescription>
+            ) : state === "processing" ? (
+              <div className="flex flex-col items-center gap-1">
+                <Cpu className="size-12 animate-spin text-white" />
+              </div>
+            ) : state === "success" ? (
+              <div className="flex flex-col items-center gap-1">
+                <CheckCircle2 className="size-12 text-white animate-bounce" />
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-1 group-hover:scale-110 transition-transform">
+                <Bot className="size-12 sm:size-14 text-cyan-300 drop-shadow-[0_0_15px_rgba(34,211,238,0.8)]" />
+                <Sparkles className="size-4 text-cyan-400 animate-pulse" />
+              </div>
+            )}
           </div>
-          {categoryBreakdown.list.length > 0 && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleExpandAll}
-              className="w-full sm:w-auto text-xs font-semibold"
-            >
-              {allExpanded ? "Recolher Todas" : "Expandir Subcategorias"}
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          {categoryBreakdown.list.length > 0 ? (
-            <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
-              {/* Lista Detalhada Expandível */}
-              <div className="space-y-3 lg:col-span-3">
-                {categoryBreakdown.list.map((item) => {
-                  const isExpanded = !!expandedCategories[item.name];
+        </div>
 
-                  return (
-                    <div
-                      key={item.name}
-                      className="rounded-xl border bg-card p-3.5 space-y-2.5 transition-all"
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleCategory(item.name)}
-                        className="w-full flex items-center justify-between text-left group"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <span
-                            className="size-3 rounded-full shrink-0"
-                            style={{ backgroundColor: item.color }}
-                          />
-                          <span className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
-                            {item.name}
-                          </span>
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground shrink-0">
-                            {item.subcategories.length} {item.subcategories.length === 1 ? "subcategoria" : "subcategorias"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="text-right">
-                            <span className="text-xs text-muted-foreground mr-2 font-medium">
-                              {item.percentage.toFixed(1)}%
-                            </span>
-                            <span className="font-bold text-sm tabular-nums">
-                              {formatBRL(item.amount)}
-                            </span>
-                          </div>
-                          <div className="p-1 rounded-lg hover:bg-accent text-muted-foreground">
-                            {isExpanded ? (
-                              <ChevronUp className="size-4" />
-                            ) : (
-                              <ChevronDown className="size-4" />
-                            )}
-                          </div>
-                        </div>
-                      </button>
+        {/* BARRAS DE ONDA SONORA EQUALIZADOR QUANDO GRAVANDO */}
+        {state === "recording" && (
+          <div className="mt-8 flex items-center justify-center gap-1.5 h-8">
+            {[40, 70, 30, 90, 50, 100, 60, 80, 40, 90, 30].map((h, i) => (
+              <div
+                key={i}
+                className="w-1.5 rounded-full bg-red-500 animate-pulse"
+                style={{
+                  height: `${h}%`,
+                  animationDuration: `${0.4 + (i % 5) * 0.15}s`,
+                }}
+              />
+            ))}
+          </div>
+        )}
 
-                      <Progress value={item.percentage} className="h-2" />
-
-                      {isExpanded && (
-                        <div className="mt-3 pt-3 border-t space-y-2">
-                          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                            Detalhamento de {item.name}
-                          </p>
-                          <div className="space-y-2">
-                            {item.subcategories.map((sub) => (
-                              <div
-                                key={sub.name}
-                                className="rounded-lg bg-secondary/50 p-2.5 space-y-1.5"
-                              >
-                                <div className="flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className="size-1.5 rounded-full bg-muted-foreground/60 shrink-0" />
-                                    <span className="font-medium text-foreground truncate">
-                                      {sub.name}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2.5 tabular-nums shrink-0">
-                                    <span className="text-[11px] font-semibold text-muted-foreground">
-                                      {sub.percentageOfCategory.toFixed(1)}% da categoria
-                                    </span>
-                                    <span className="font-bold text-xs text-foreground">
-                                      {formatBRL(sub.amount)}
-                                    </span>
-                                  </div>
-                                </div>
-                                <Progress value={sub.percentageOfCategory} className="h-1.5 bg-background" />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Donut Chart Lateral */}
-              <div className="lg:col-span-2 flex flex-col items-center justify-center rounded-xl border bg-card p-6">
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={categoryBreakdown.list}
-                        dataKey="amount"
-                        nameKey="name"
-                        innerRadius={62}
-                        outerRadius={100}
-                        paddingAngle={3}
-                        stroke="var(--card)"
-                        strokeWidth={2}
-                      >
-                        {categoryBreakdown.list.map((entry) => (
-                          <Cell key={entry.name} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(v: number) => formatBRL(v)}
-                        contentStyle={{
-                          borderRadius: 12,
-                          border: "1px solid var(--border)",
-                          background: "var(--popover)",
-                          fontSize: 12,
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div className="mt-2 text-center">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Total de Despesas
-                  </span>
-                  <p className="text-2xl font-bold tabular-nums text-danger mt-0.5">
-                    {formatBRL(categoryBreakdown.totalSpent)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex h-48 flex-col items-center justify-center text-center">
-              <PieIcon className="mb-2 size-8 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">
-                Nenhuma despesa registrada para o mês selecionado.
+        {/* CRONÔMETRO OU MENSAGEM DE STATUS FUTURISTA */}
+        <div className="mt-8 text-center space-y-2">
+          {state === "recording" && (
+            <div className="space-y-1">
+              <span className="text-4xl font-mono font-extrabold tracking-widest text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+                {formatTimer(timerSeconds)}
+              </span>
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Ouvindo comando de voz... Clique no robô para enviar
               </p>
             </div>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Vencimentos do Mês */}
-      <Card className="shadow-none">
-        <CardHeader>
-          <CardTitle>Vencimentos do Mês</CardTitle>
-          <CardDescription>Lançamentos de despesas do período</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-6">Data</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Categoria / Subcategoria</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead className="pr-6 text-right">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {upcoming.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="pl-6 text-xs text-muted-foreground tabular-nums">
-                      {formatDate(tx.date)}
-                    </TableCell>
-                    <TableCell className="max-w-44 truncate text-sm font-medium">
-                      {tx.description}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">{tx.category}</span>
-                      {tx.subcategory && <span className="ml-1 text-muted-foreground">({tx.subcategory})</span>}
-                    </TableCell>
-                    <TableCell className="text-right text-sm font-semibold tabular-nums">
-                      {formatBRL(tx.amount)}
-                    </TableCell>
-                    <TableCell className="pr-6 text-right">
-                      <Badge
-                        variant="outline"
-                        className={
-                          tx.status === "pago"
-                            ? "border-transparent bg-success-soft text-success font-semibold"
-                            : "border-transparent bg-warning-soft text-warning-foreground font-semibold"
-                        }
-                      >
-                        {tx.status === "pago" ? "Pago" : "Pendente"}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {upcoming.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} className="h-32 text-center text-sm text-muted-foreground">
-                      Nenhum vencimento registrado para este mês.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+          {state === "idle" && (
+            <div className="space-y-1">
+              <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center justify-center gap-2">
+                <span>RiccOS AI</span>
+                <span className="inline-block size-2 rounded-full bg-cyan-400 animate-ping" />
+              </h2>
+              <p className="text-sm font-medium text-muted-foreground">
+                Clique no robô para iniciar o comando por voz
+              </p>
+            </div>
+          )}
+
+          {state === "processing" && (
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold text-amber-400 tracking-wide animate-pulse">
+                Processando Comando...
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Enviando áudio MP3 para o Webhook N8N
+              </p>
+            </div>
+          )}
+
+          {state === "success" && (
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold text-emerald-400 tracking-wide">
+                Comando Enviado com Sucesso!
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Sua mensagem de voz foi transmitida ao RiccOS.
+              </p>
+            </div>
+          )}
+
+          {state === "error" && (
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold text-red-500 tracking-wide">
+                {errorMessage || "Falha ao gravar"}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Clique no robô para tentar novamente.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

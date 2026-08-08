@@ -15,6 +15,7 @@ import { Route as MetasRouteImport } from './routes/metas'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as RiccosRouteImport } from './routes/riccos'
 import { Route as TransacoesRouteImport } from './routes/transacoes'
+import { Route as VisaoGeralRouteImport } from './routes/visao-geral'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,6 +47,11 @@ const TransacoesRoute = TransacoesRouteImport.update({
   path: '/transacoes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const VisaoGeralRoute = VisaoGeralRouteImport.update({
+  id: '/visao-geral',
+  path: '/visao-geral',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -54,6 +60,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof RelatoriosRoute
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
+  '/visao-geral': typeof VisaoGeralRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -62,6 +69,7 @@ export interface FileRoutesByTo {
   '/relatorios': typeof RelatoriosRoute
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
+  '/visao-geral': typeof VisaoGeralRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -71,13 +79,27 @@ export interface FileRoutesById {
   '/relatorios': typeof RelatoriosRoute
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
+  '/visao-geral': typeof VisaoGeralRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/login' | '/metas' | '/relatorios' | '/riccos' | '/transacoes'
+    | '/'
+    | '/login'
+    | '/metas'
+    | '/relatorios'
+    | '/riccos'
+    | '/transacoes'
+    | '/visao-geral'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/metas' | '/relatorios' | '/riccos' | '/transacoes'
+  to:
+    | '/'
+    | '/login'
+    | '/metas'
+    | '/relatorios'
+    | '/riccos'
+    | '/transacoes'
+    | '/visao-geral'
   id:
     | '__root__'
     | '/'
@@ -86,6 +108,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/riccos'
     | '/transacoes'
+    | '/visao-geral'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,6 +118,7 @@ export interface RootRouteChildren {
   RelatoriosRoute: typeof RelatoriosRoute
   RiccosRoute: typeof RiccosRoute
   TransacoesRoute: typeof TransacoesRoute
+  VisaoGeralRoute: typeof VisaoGeralRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -141,6 +165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TransacoesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/visao-geral': {
+      id: '/visao-geral'
+      path: '/visao-geral'
+      fullPath: '/visao-geral'
+      preLoaderRoute: typeof VisaoGeralRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -151,6 +182,7 @@ const rootRouteChildren: RootRouteChildren = {
   RelatoriosRoute: RelatoriosRoute,
   RiccosRoute: RiccosRoute,
   TransacoesRoute: TransacoesRoute,
+  VisaoGeralRoute: VisaoGeralRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

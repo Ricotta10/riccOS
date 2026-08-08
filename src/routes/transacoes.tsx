@@ -96,17 +96,17 @@ function TransactionsPage() {
         <CardContent className="p-6 space-y-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative min-w-0 flex-1">
-              <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Buscar por descrição..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="pl-9"
+                className="pl-10 h-11 sm:h-10 text-sm"
               />
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:w-auto">
+            <div className="grid grid-cols-3 gap-2 lg:w-auto">
               <Select value={type} onValueChange={setType}>
-                <SelectTrigger className="sm:w-36">
+                <SelectTrigger className="h-11 sm:h-10 text-xs sm:text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -116,7 +116,7 @@ function TransactionsPage() {
                 </SelectContent>
               </Select>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="sm:w-40">
+                <SelectTrigger className="h-11 sm:h-10 text-xs sm:text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -129,7 +129,7 @@ function TransactionsPage() {
                 </SelectContent>
               </Select>
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="sm:w-36">
+                <SelectTrigger className="h-11 sm:h-10 text-xs sm:text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -144,13 +144,100 @@ function TransactionsPage() {
                 setEditing(null);
                 setOpen(true);
               }}
-              className="shrink-0"
+              className="shrink-0 h-11 sm:h-10 w-full lg:w-auto font-semibold gap-2"
             >
-              <Plus /> Adicionar Lançamento
+              <Plus className="size-4" /> Adicionar Lançamento
             </Button>
           </div>
 
-          <div className="-mx-6 -mb-6 overflow-x-auto border-t">
+          {/* Mobile Card List View */}
+          <div className="space-y-3 md:hidden pt-2">
+            {rows.map((tx) => (
+              <div
+                key={tx.id}
+                className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                    {formatDate(tx.date)}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleStatus(tx.id)}
+                      title="Alternar status"
+                    >
+                      <Badge
+                        variant="outline"
+                        className={`cursor-pointer border-transparent ${
+                          tx.status === "pago"
+                            ? "bg-success-soft text-success"
+                            : "bg-warning-soft text-warning-foreground"
+                        }`}
+                      >
+                        {tx.status === "pago" ? "Pago" : "Pendente"}
+                      </Badge>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-sm text-foreground truncate">
+                      {tx.description}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      <span className="font-medium">{tx.category}</span>
+                      {tx.subcategory ? ` / ${tx.subcategory}` : ""}
+                    </p>
+                  </div>
+                  <span
+                    className={`text-base font-bold tabular-nums shrink-0 ${
+                      tx.type === "receita" ? "text-success" : "text-foreground"
+                    }`}
+                  >
+                    {tx.type === "receita" ? "+" : "−"} {formatBRL(tx.amount)}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
+                  <span className="text-muted-foreground font-medium">
+                    {frequencyLabel(tx.frequency)}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setEditing(tx);
+                        setOpen(true);
+                      }}
+                    >
+                      <Pencil className="size-3.5 mr-1" /> Editar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs text-destructive hover:text-destructive"
+                      onClick={() => removeTransaction(tx.id)}
+                    >
+                      <Trash2 className="size-3.5 mr-1" /> Excluir
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {rows.length === 0 && (
+              <div className="py-12 text-center text-sm text-muted-foreground bg-muted/20 rounded-2xl border border-dashed p-6">
+                Nenhum lançamento encontrado com os filtros atuais.
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block -mx-6 -mb-6 overflow-x-auto border-t">
             <Table>
               <TableHeader>
                 <TableRow>

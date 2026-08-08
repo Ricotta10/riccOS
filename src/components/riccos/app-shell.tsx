@@ -43,11 +43,11 @@ import { useRiccos } from "./store";
 import { IosInstallPrompt } from "./ios-install-prompt";
 
 const centralItems = [
-  { title: "RiccOS", url: "/riccos", icon: Sparkles },
+  { title: "RiccOS", url: "/", icon: Sparkles },
 ];
 
 const financialItems = [
-  { title: "Visão Geral", url: "/", icon: PieChart },
+  { title: "Visão Geral", url: "/visao-geral", icon: PieChart },
   { title: "Transações", url: "/transacoes", icon: Wallet },
   { title: "Metas", url: "/metas", icon: Target },
   { title: "Relatórios", url: "/relatorios", icon: LineChart },
@@ -173,24 +173,24 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
   const currentCutoff = profile?.dia_vencimento ?? 3;
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1 rounded-xl border bg-card p-1 shadow-xs">
+    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+      <div className="flex items-center justify-between sm:justify-start gap-1 rounded-xl border bg-card p-1 shadow-xs flex-1 sm:flex-none min-w-[190px]">
         <Button
           variant="ghost"
           size="icon"
-          className="size-8"
+          className="size-9 rounded-lg"
           onClick={prevMonth}
           aria-label="Mês anterior"
         >
           <ChevronLeft className="size-4" />
         </Button>
-        <span className="min-w-32 text-center text-sm font-semibold">
+        <span className="flex-1 text-center text-xs sm:text-sm font-semibold">
           {monthNames[month]} / {year}
         </span>
         <Button
           variant="ghost"
           size="icon"
-          className="size-8"
+          className="size-9 rounded-lg"
           onClick={nextMonth}
           aria-label="Próximo mês"
         >
@@ -203,7 +203,7 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
           <Button
             variant="outline"
             size="sm"
-            className="h-10 rounded-xl text-xs font-semibold gap-1.5 px-3"
+            className="h-10 rounded-xl text-xs font-semibold gap-1.5 px-3 flex-1 sm:flex-none justify-center"
             title="Alterar dia de vencimento do cartão"
           >
             <CalendarCog className="size-3.5 text-muted-foreground" />
@@ -243,11 +243,11 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
 
       {showBalance && (
         <div
-          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold ${
+          className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold w-full sm:w-auto ${
             positive ? "bg-success-soft text-success border-success/20" : "bg-danger-soft text-danger border-danger/20"
           }`}
         >
-          <span className="size-1.5 rounded-full bg-current" />
+          <span className="size-2 rounded-full bg-current" />
           Saldo: {formatBRL(balanco)}
         </div>
       )}
@@ -255,14 +255,94 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
   );
 }
 
+function MobileHeader() {
+  const { profile } = useAuth();
+
+  const getInitials = (name?: string) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((part) => part[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase();
+  };
+
+  return (
+    <header className="sticky top-0 z-30 w-full border-b bg-background/95 backdrop-blur-md md:hidden pt-safe">
+      <div className="flex h-14 items-center justify-between px-3">
+        <div className="flex items-center gap-2">
+          <SidebarTrigger className="size-10 rounded-xl" />
+          <div className="flex items-center gap-2 font-bold text-base">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
+              <Sparkles className="size-3.5" />
+            </div>
+            <span className="tracking-tight">RiccOS</span>
+          </div>
+        </div>
+
+        <Avatar className="size-8 border">
+          <AvatarImage src={profile?.user_avatar} alt={profile?.user_nome ?? "Usuário"} />
+          <AvatarFallback className="bg-primary/10 text-primary font-bold text-[11px]">
+            {getInitials(profile?.user_nome)}
+          </AvatarFallback>
+        </Avatar>
+      </div>
+    </header>
+  );
+}
+
+function MobileBottomNav() {
+  const state = useRouterState();
+  const currentPath = state.location.pathname;
+
+  const navItems = [
+    { title: "RiccOS", url: "/", icon: Sparkles },
+    { title: "Visão Geral", url: "/visao-geral", icon: PieChart },
+    { title: "Transações", url: "/transacoes", icon: Wallet },
+    { title: "Metas", url: "/metas", icon: Target },
+    { title: "Relatórios", url: "/relatorios", icon: LineChart },
+  ];
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t bg-card/95 backdrop-blur-xl md:hidden pb-safe">
+      <div className="grid h-16 grid-cols-5 items-center px-1">
+        {navItems.map((item) => {
+          const isActive = currentPath === item.url;
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.url}
+              to={item.url}
+              className={`flex flex-col items-center justify-center gap-1 py-1 text-center transition-colors rounded-xl mx-0.5 ${
+                isActive
+                  ? "text-primary font-semibold bg-primary/10"
+                  : "text-muted-foreground hover:text-foreground active:scale-95"
+              }`}
+            >
+              <Icon className={`size-5 ${isActive ? "text-primary scale-110" : ""}`} />
+              <span className="text-[10px] leading-none truncate max-w-full px-0.5">
+                {item.title}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full flex-col md:flex-row bg-background">
         <AppSidebar />
-        <SidebarInset className="min-w-0">
-          <div className="flex-1 px-4 py-6 md:px-6 md:py-8">{children}</div>
+        <MobileHeader />
+        <SidebarInset className="min-w-0 flex-1">
+          <div className="flex-1 px-3 py-4 sm:px-6 sm:py-8 pb-24 md:pb-8">{children}</div>
         </SidebarInset>
+        <MobileBottomNav />
         <IosInstallPrompt />
       </div>
     </SidebarProvider>
@@ -284,16 +364,13 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3 min-w-0">
-        <SidebarTrigger className="md:hidden shrink-0" />
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-bold md:text-3xl">{title}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        </div>
+      <div className="min-w-0">
+        <h1 className="truncate text-xl font-bold sm:text-2xl md:text-3xl tracking-tight">{title}</h1>
+        <p className="mt-0.5 text-xs sm:text-sm text-muted-foreground">{description}</p>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
         {showPeriodFilter && <PeriodFilter showBalance={showBalance} />}
-        {children && <div>{children}</div>}
+        {children && <div className="w-full sm:w-auto">{children}</div>}
       </div>
     </div>
   );

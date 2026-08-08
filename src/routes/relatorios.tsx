@@ -263,12 +263,12 @@ function ReportsPage() {
         showPeriodFilter={false}
       />
 
-      <div className="flex items-center justify-between">
-        <Tabs value={range} onValueChange={(v) => setRange(v as keyof typeof ranges)}>
-          <TabsList className="bg-muted/60 p-1">
+      <div className="flex items-center justify-between w-full">
+        <Tabs value={range} onValueChange={(v) => setRange(v as keyof typeof ranges)} className="w-full sm:w-auto">
+          <TabsList className="bg-muted/60 p-1 grid grid-cols-3 w-full sm:w-auto h-11 sm:h-10">
             {Object.entries(ranges).map(([key, value]) => (
-              <TabsTrigger key={key} value={key} className="text-xs sm:text-sm">
-                {value.label}
+              <TabsTrigger key={key} value={key} className="text-xs font-semibold px-2">
+                {key === "3m" ? "3 Meses" : key === "6m" ? "6 Meses" : "Ano"}
               </TabsTrigger>
             ))}
           </TabsList>
