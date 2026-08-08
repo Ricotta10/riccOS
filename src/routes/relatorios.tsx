@@ -49,7 +49,8 @@ function ReportsPage() {
 
   const history = data.map((row, i) => {
     const net = row.receitas - row.despesas;
-    const prev = i > 0 ? data[i - 1].receitas - data[i - 1].despesas : null;
+    const previous = data[i - 1];
+    const prev = previous ? previous.receitas - previous.despesas : null;
     const variation = prev && prev !== 0 ? ((net - prev) / Math.abs(prev)) * 100 : null;
     return { ...row, net, variation };
   });

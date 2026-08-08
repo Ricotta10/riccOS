@@ -194,7 +194,7 @@ function TransactionsPage() {
                             <Pencil /> Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem
-                            variant="destructive"
+                            className="text-destructive focus:text-destructive"
                             onClick={() => removeTransaction(tx.id)}
                           >
                             <Trash2 /> Excluir
