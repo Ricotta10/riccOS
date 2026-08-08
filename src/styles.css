@@ -153,6 +153,19 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+.dark {
+  --success: oklch(0.7 0.15 155);
+  --success-foreground: oklch(0.16 0.02 155);
+  --success-soft: oklch(0.3 0.06 155);
+  --warning: oklch(0.8 0.15 85);
+  --warning-foreground: oklch(0.2 0.04 85);
+  --warning-soft: oklch(0.32 0.06 85);
+  --danger: oklch(0.68 0.19 22);
+  --danger-foreground: oklch(0.16 0.02 22);
+  --danger-soft: oklch(0.3 0.07 22);
+  --chart-6: oklch(0.7 0.11 195);
+}
+
 @layer base {
   * {
     border-color: var(--color-border);
@@ -161,5 +174,14 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    letter-spacing: -0.02em;
   }
 }
