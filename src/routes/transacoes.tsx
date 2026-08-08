@@ -15,8 +15,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   categoryList,
   formatBRL,
@@ -45,13 +58,20 @@ export const Route = createFileRoute("/transacoes")({
 });
 
 function TransactionsPage() {
-  const { monthTransactions, toggleStatus, removeTransaction } = useRiccos();
+  const { monthTransactions, toggleStatus, removeTransaction, dbCategories } = useRiccos();
   const [query, setQuery] = useState("");
   const [type, setType] = useState("todas");
   const [category, setCategory] = useState("todas");
   const [status, setStatus] = useState("todos");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
+
+  const availableCategoryNames = useMemo(() => {
+    if (dbCategories.length > 0) {
+      return Array.from(new Set(dbCategories.map((c) => c.categoria_nome)));
+    }
+    return categoryList;
+  }, [dbCategories]);
 
   const rows = useMemo(
     () =>
@@ -69,11 +89,12 @@ function TransactionsPage() {
       <PageHeader
         title="Transações"
         description="Todos os lançamentos do mês selecionado, com filtros e edição rápida."
+        showBalance={false}
       />
 
       <Card className="shadow-none">
-        <CardContent className="space-y-4 px-0">
-          <div className="flex flex-col gap-3 px-6 lg:flex-row lg:items-center">
+        <CardContent className="p-6 space-y-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative min-w-0 flex-1">
               <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -85,7 +106,9 @@ function TransactionsPage() {
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:w-auto">
               <Select value={type} onValueChange={setType}>
-                <SelectTrigger className="sm:w-36"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="sm:w-36">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todas">Todas</SelectItem>
                   <SelectItem value="receita">Receitas</SelectItem>
@@ -93,16 +116,22 @@ function TransactionsPage() {
                 </SelectContent>
               </Select>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="sm:w-40"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="sm:w-40">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todas">Categorias</SelectItem>
-                  {categoryList.map((c) => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
+                  {availableCategoryNames.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="sm:w-36"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="sm:w-36">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Status</SelectItem>
                   <SelectItem value="pago">Pago</SelectItem>
@@ -121,7 +150,7 @@ function TransactionsPage() {
             </Button>
           </div>
 
-          <div className="overflow-x-auto border-t">
+          <div className="-mx-6 -mb-6 overflow-x-auto border-t">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -141,7 +170,9 @@ function TransactionsPage() {
                     <TableCell className="pl-6 text-xs text-muted-foreground tabular-nums">
                       {formatDate(tx.date)}
                     </TableCell>
-                    <TableCell className="max-w-56 truncate text-sm font-medium">{tx.description}</TableCell>
+                    <TableCell className="max-w-56 truncate text-sm font-medium">
+                      {tx.description}
+                    </TableCell>
                     <TableCell className="text-xs">
                       <span className="font-medium">{tx.category}</span>
                       <span className="text-muted-foreground"> / {tx.subcategory}</span>
@@ -164,7 +195,11 @@ function TransactionsPage() {
                       {tx.type === "receita" ? "+" : "−"} {formatBRL(tx.amount)}
                     </TableCell>
                     <TableCell>
-                      <button type="button" onClick={() => toggleStatus(tx.id)} title="Alternar status">
+                      <button
+                        type="button"
+                        onClick={() => toggleStatus(tx.id)}
+                        title="Alternar status"
+                      >
                         <Badge
                           variant="outline"
                           className={`cursor-pointer border-transparent ${
@@ -206,7 +241,10 @@ function TransactionsPage() {
                 ))}
                 {rows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
+                    <TableCell
+                      colSpan={8}
+                      className="py-12 text-center text-sm text-muted-foreground"
+                    >
                       Nenhum lançamento encontrado com os filtros atuais.
                     </TableCell>
                   </TableRow>

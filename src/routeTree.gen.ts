@@ -10,13 +10,20 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as MetasRouteImport } from './routes/metas'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
+import { Route as RiccosRouteImport } from './routes/riccos'
 import { Route as TransacoesRouteImport } from './routes/transacoes'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MetasRoute = MetasRouteImport.update({
@@ -29,6 +36,11 @@ const RelatoriosRoute = RelatoriosRouteImport.update({
   path: '/relatorios',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RiccosRoute = RiccosRouteImport.update({
+  id: '/riccos',
+  path: '/riccos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TransacoesRoute = TransacoesRouteImport.update({
   id: '/transacoes',
   path: '/transacoes',
@@ -37,35 +49,51 @@ const TransacoesRoute = TransacoesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/metas': typeof MetasRoute
   '/relatorios': typeof RelatoriosRoute
+  '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/metas': typeof MetasRoute
   '/relatorios': typeof RelatoriosRoute
+  '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
   '/metas': typeof MetasRoute
   '/relatorios': typeof RelatoriosRoute
+  '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/metas' | '/relatorios' | '/transacoes'
+  fullPaths:
+    '/' | '/login' | '/metas' | '/relatorios' | '/riccos' | '/transacoes'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/metas' | '/relatorios' | '/transacoes'
-  id: '__root__' | '/' | '/metas' | '/relatorios' | '/transacoes'
+  to: '/' | '/login' | '/metas' | '/relatorios' | '/riccos' | '/transacoes'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/metas'
+    | '/relatorios'
+    | '/riccos'
+    | '/transacoes'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  LoginRoute: typeof LoginRoute
   MetasRoute: typeof MetasRoute
   RelatoriosRoute: typeof RelatoriosRoute
+  RiccosRoute: typeof RiccosRoute
   TransacoesRoute: typeof TransacoesRoute
 }
 
@@ -76,6 +104,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/metas': {
@@ -92,6 +127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RelatoriosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/riccos': {
+      id: '/riccos'
+      path: '/riccos'
+      fullPath: '/riccos'
+      preLoaderRoute: typeof RiccosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/transacoes': {
       id: '/transacoes'
       path: '/transacoes'
@@ -104,10 +146,22 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  LoginRoute: LoginRoute,
   MetasRoute: MetasRoute,
   RelatoriosRoute: RelatoriosRoute,
+  RiccosRoute: RiccosRoute,
   TransacoesRoute: TransacoesRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

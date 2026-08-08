@@ -10,7 +10,7 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
+import { reportRiccosError } from "../lib/riccos-error-reporting";
 import { AppShell } from "../components/riccos/app-shell";
 import { RiccosProvider } from "../components/riccos/store";
 
@@ -40,7 +40,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
   useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    reportRiccosError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (
@@ -78,7 +78,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      {
+        name: "viewport",
+        content:
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+      },
       { title: "RiccOS — Gestão financeira pessoal" },
       {
         name: "description",
@@ -92,7 +96,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:site", content: "@RiccOS" },
+      { name: "theme-color", content: "#09090b" },
+      { name: "mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "RiccOS" },
     ],
     links: [
       {
@@ -106,6 +115,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+      { rel: "manifest", href: "/site.webmanifest" },
     ],
   }),
   shellComponent: RootShell,
@@ -128,17 +139,71 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+import { AuthProvider, useAuth } from "../lib/auth";
+import { useRouterState, useNavigate } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
+
+function AuthenticatedContent() {
+  const { user, loading } = useAuth();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+
+  const isLoginPage = pathname === "/login";
+
+  useEffect(() => {
+    if (!loading && !user && !isLoginPage) {
+      navigate({ to: "/login" });
+    }
+  }, [user, loading, isLoginPage, navigate]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="size-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isLoginPage) {
+    return <Outlet />;
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <AppShell>
+      <Outlet />
+    </AppShell>
+  );
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .then((reg) => {
+            console.log("ServiceWorker registrado com sucesso:", reg.scope);
+          })
+          .catch((err) => {
+            console.error("Erro ao registrar ServiceWorker:", err);
+          });
+      });
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
-      <RiccosProvider>
-        <AppShell>
-          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-          <Outlet />
-        </AppShell>
-      </RiccosProvider>
+      <AuthProvider>
+        <RiccosProvider>
+          <AuthenticatedContent />
+        </RiccosProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

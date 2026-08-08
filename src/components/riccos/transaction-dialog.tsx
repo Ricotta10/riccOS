@@ -18,10 +18,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { categories, categoryList, type Transaction, type TxType } from "@/lib/finance-data";
 import { useRiccos } from "./store";
+
+function formatCurrencyInput(val: string): string {
+  const digits = val.replace(/\D/g, "");
+  if (!digits) return "";
+  const numberValue = Number(digits) / 100;
+  return numberValue.toLocaleString("pt-BR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function parseCurrencyToNumber(val: string): number {
+  if (!val) return 0;
+  const clean = val.replace(/\./g, "").replace(",", ".");
+  return Number(clean) || 0;
+}
 
 export function TransactionDialog({
   open,
@@ -32,61 +54,111 @@ export function TransactionDialog({
   onOpenChange: (open: boolean) => void;
   editing?: Transaction | null;
 }) {
-  const { addTransaction, updateTransaction } = useRiccos();
+  const { addTransaction, updateTransaction, dbCategories, dbSubcategories } = useRiccos();
   const [type, setType] = useState<TxType>("despesa");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [date, setDate] = useState<Date | undefined>(new Date(2026, 7, 15));
-  const [category, setCategory] = useState("");
-  const [subcategory, setSubcategory] = useState("");
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [categoryId, setCategoryId] = useState("");
+  const [subcategoryId, setSubcategoryId] = useState("");
+  const [categoryName, setCategoryName] = useState("");
+  const [subcategoryName, setSubcategoryName] = useState("");
   const [frequency, setFrequency] = useState<"pontual" | "recorrente" | "parcelado">("pontual");
-  const [installments, setInstallments] = useState("2");
+  const [currentInstallment, setCurrentInstallment] = useState("1");
+  const [totalInstallments, setTotalInstallments] = useState("2");
+  const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [paid, setPaid] = useState(false);
+
+  // Categorias filtradas pelo tipo (Despesa vs Receita)
+  const availableCategories = useMemo(() => {
+    if (dbCategories.length > 0) {
+      return dbCategories.filter((c) =>
+        type === "receita"
+          ? c.categoria_tipo?.toLowerCase() === "receita"
+          : c.categoria_tipo?.toLowerCase() !== "receita",
+      );
+    }
+    return [];
+  }, [dbCategories, type]);
+
+  // Subcategorias filtradas pela categoria selecionada
+  const availableSubcategories = useMemo(() => {
+    if (categoryId && dbSubcategories.length > 0) {
+      return dbSubcategories.filter((s) => s.categoria_id === categoryId);
+    }
+    return [];
+  }, [categoryId, dbSubcategories]);
 
   useEffect(() => {
     if (!open) return;
     if (editing) {
       setType(editing.type);
       setDescription(editing.description);
-      setAmount(String(editing.amount));
+      setAmount(
+        typeof editing.amount === "number" && !isNaN(editing.amount)
+          ? editing.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          : String(editing.amount),
+      );
       setDate(new Date(`${editing.date}T12:00:00`));
-      setCategory(editing.category);
-      setSubcategory(editing.subcategory);
+      setCategoryId(editing.categoryId || "");
+      setSubcategoryId(editing.subcategoryId || "");
+      setCategoryName(editing.category || "");
+      setSubcategoryName(editing.subcategory || "");
       setFrequency(editing.frequency.kind);
-      setInstallments(editing.frequency.kind === "parcelado" ? String(editing.frequency.total) : "2");
+      setEndDate(editing.endDate ? new Date(`${editing.endDate}T12:00:00`) : undefined);
+      if (editing.frequency.kind === "parcelado") {
+        setCurrentInstallment(String(editing.frequency.current));
+        setTotalInstallments(String(editing.frequency.total));
+      } else {
+        setCurrentInstallment("1");
+        setTotalInstallments("2");
+      }
       setPaid(editing.status === "pago");
     } else {
       setType("despesa");
       setDescription("");
       setAmount("");
-      setDate(new Date(2026, 7, 15));
-      setCategory("");
-      setSubcategory("");
+      setDate(new Date());
+      setCategoryId("");
+      setSubcategoryId("");
+      setCategoryName("");
+      setSubcategoryName("");
       setFrequency("pontual");
-      setInstallments("2");
+      setEndDate(undefined);
+      setCurrentInstallment("1");
+      setTotalInstallments("2");
       setPaid(false);
     }
   }, [open, editing]);
 
-  const subcategories = useMemo(() => (category ? categories[category] ?? [] : []), [category]);
-
   const submit = () => {
-    if (!description || !amount || !date || !category) return;
+    const numericAmount = parseCurrencyToNumber(amount);
+    if (!description || numericAmount <= 0 || !date || (!categoryId && !categoryName)) return;
+
     const payload: Omit<Transaction, "id"> = {
       description,
-      amount: Number(amount.replace(",", ".")),
+      amount: numericAmount,
       date: format(date, "yyyy-MM-dd"),
-      category,
-      subcategory: subcategory || (categories[category]?.[0] ?? ""),
+      endDate: frequency === "recorrente" && endDate ? format(endDate, "yyyy-MM-dd") : undefined,
+      category: categoryName || "Outros",
+      subcategory: subcategoryName || "",
+      categoryId: categoryId || undefined,
+      subcategoryId: subcategoryId || undefined,
       type,
       status: paid ? "pago" : "pendente",
       frequency:
         frequency === "parcelado"
-          ? { kind: "parcelado", current: 1, total: Math.max(2, Number(installments) || 2) }
+          ? {
+              kind: "parcelado",
+              current: Math.max(1, Number(currentInstallment) || 1),
+              total: Math.max(1, Number(totalInstallments) || 1),
+            }
           : { kind: frequency },
     };
+
     if (editing) updateTransaction(editing.id, payload);
     else addTransaction(payload);
+
     onOpenChange(false);
   };
 
@@ -107,8 +179,10 @@ export function TransactionDialog({
               type="button"
               onClick={() => {
                 setType(option);
-                setCategory(option === "receita" ? "Receitas" : "");
-                setSubcategory("");
+                setCategoryId("");
+                setSubcategoryId("");
+                setCategoryName("");
+                setSubcategoryName("");
               }}
               className={cn(
                 "rounded-lg py-2 text-sm font-semibold transition-colors",
@@ -138,13 +212,19 @@ export function TransactionDialog({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label htmlFor="valor">Valor (R$)</Label>
-              <Input
-                id="valor"
-                inputMode="decimal"
-                placeholder="0,00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+                  R$
+                </span>
+                <Input
+                  id="valor"
+                  inputMode="numeric"
+                  placeholder="0,00"
+                  className="pl-9 font-medium"
+                  value={amount}
+                  onChange={(e) => setAmount(formatCurrencyInput(e.target.value))}
+                />
+              </div>
             </div>
             <div className="grid gap-2">
               <Label>Data de vencimento</Label>
@@ -175,38 +255,69 @@ export function TransactionDialog({
             <div className="grid gap-2">
               <Label>Categoria</Label>
               <Select
-                value={category}
-                onValueChange={(v) => {
-                  setCategory(v);
-                  setSubcategory("");
+                value={categoryId || categoryName}
+                onValueChange={(val) => {
+                  const matched = availableCategories.find((c) => c.categoria_id === val || c.categoria_nome === val);
+                  if (matched) {
+                    setCategoryId(matched.categoria_id);
+                    setCategoryName(matched.categoria_nome);
+                  } else {
+                    setCategoryName(val);
+                  }
+                  setSubcategoryId("");
+                  setSubcategoryName("");
                 }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categoryList
-                    .filter((c) => (type === "receita" ? c === "Receitas" : c !== "Receitas"))
-                    .map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
+                  {availableCategories.length > 0
+                    ? availableCategories.map((c) => (
+                        <SelectItem key={c.categoria_id} value={c.categoria_id}>
+                          {c.categoria_nome}
+                        </SelectItem>
+                      ))
+                    : categoryList
+                        .filter((c) => (type === "receita" ? c === "Receitas" : c !== "Receitas"))
+                        .map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid gap-2">
               <Label>Subcategoria</Label>
-              <Select value={subcategory} onValueChange={setSubcategory} disabled={!category}>
+              <Select
+                value={subcategoryId || subcategoryName}
+                onValueChange={(val) => {
+                  const matched = availableSubcategories.find((s) => s.subcategoria_id === val || s.subcategoria_nome === val);
+                  if (matched) {
+                    setSubcategoryId(matched.subcategoria_id);
+                    setSubcategoryName(matched.subcategoria_nome);
+                  } else {
+                    setSubcategoryName(val);
+                  }
+                }}
+                disabled={!categoryId && !categoryName}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder={category ? "Selecionar" : "Escolha a categoria"} />
+                  <SelectValue placeholder={categoryId || categoryName ? "Selecionar" : "Escolha a categoria"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {subcategories.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
+                  {availableSubcategories.length > 0
+                    ? availableSubcategories.map((s) => (
+                        <SelectItem key={s.subcategoria_id} value={s.subcategoria_id}>
+                          {s.subcategoria_nome}
+                        </SelectItem>
+                      ))
+                    : (categories[categoryName] ?? []).map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {s}
+                        </SelectItem>
+                      ))}
                 </SelectContent>
               </Select>
             </div>
@@ -235,22 +346,77 @@ export function TransactionDialog({
             </RadioGroup>
           </div>
 
-          {frequency === "parcelado" && (
+          {frequency === "recorrente" && (
             <div className="grid gap-2">
-              <Label htmlFor="parcelas">Quantidade de parcelas</Label>
-              <Input
-                id="parcelas"
-                type="number"
-                min={2}
-                value={installments}
-                onChange={(e) => setInstallments(e.target.value)}
-                className="sm:max-w-40"
-              />
+              <Label>Data de término (opcional)</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn("justify-start font-normal", !endDate && "text-muted-foreground")}
+                  >
+                    <CalendarIcon />
+                    {endDate ? format(endDate, "dd/MM/yyyy") : "Sem data de término"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <div className="p-2 border-b flex justify-between items-center">
+                    <span className="text-xs font-semibold px-1">Data limite da recorrência</span>
+                    {endDate && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs text-muted-foreground"
+                        onClick={() => setEndDate(undefined)}
+                      >
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
+                  <Calendar
+                    mode="single"
+                    selected={endDate}
+                    onSelect={setEndDate}
+                    locale={ptBR}
+                    className={cn("pointer-events-auto p-3")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+
+          {frequency === "parcelado" && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="parcelaAtual">Parcela atual</Label>
+                <Input
+                  id="parcelaAtual"
+                  type="number"
+                  min={1}
+                  max={Math.max(1, Number(totalInstallments) || 1)}
+                  value={currentInstallment}
+                  onChange={(e) => setCurrentInstallment(e.target.value)}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="parcelaTotal">Total de parcelas</Label>
+                <Input
+                  id="parcelaTotal"
+                  type="number"
+                  min={1}
+                  value={totalInstallments}
+                  onChange={(e) => setTotalInstallments(e.target.value)}
+                />
+              </div>
             </div>
           )}
 
           <Label className="flex cursor-pointer items-center gap-3 rounded-xl border bg-secondary/40 p-3 text-sm font-medium">
-            <Checkbox className="rounded-[4px]" checked={paid} onCheckedChange={(v) => setPaid(v === true)} />
+            <Checkbox
+              className="rounded-[4px]"
+              checked={paid}
+              onCheckedChange={(v) => setPaid(v === true)}
+            />
             Já está {type === "receita" ? "recebido" : "pago"}
           </Label>
         </div>
