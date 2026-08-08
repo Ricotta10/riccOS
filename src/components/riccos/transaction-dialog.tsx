@@ -250,7 +250,7 @@ export function TransactionDialog({
           )}
 
           <Label className="flex cursor-pointer items-center gap-3 rounded-xl border bg-secondary/40 p-3 text-sm font-medium">
-            <Checkbox checked={paid} onCheckedChange={(v) => setPaid(v === true)} />
+            <Checkbox className="rounded-[4px]" checked={paid} onCheckedChange={(v) => setPaid(v === true)} />
             Já está {type === "receita" ? "recebido" : "pago"}
           </Label>
         </div>
