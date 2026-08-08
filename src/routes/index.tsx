@@ -86,9 +86,12 @@ function Overview() {
   const { entradas, saidas, balanco, pendente } = summarize(monthTransactions);
   const byCategory = spentByCategory(monthTransactions);
   const top5 = byCategory.slice(0, 5);
-  const upcoming = [...monthTransactions]
-    .sort((a, b) => a.date.localeCompare(b.date))
+  const upcoming = monthTransactions
     .filter((tx) => tx.type === "despesa")
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === "pendente" ? -1 : 1;
+      return a.date.localeCompare(b.date);
+    })
     .slice(0, 7);
 
   return (
