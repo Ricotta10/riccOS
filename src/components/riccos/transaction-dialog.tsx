@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, CalendarIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -96,7 +96,10 @@ export function TransactionDialog({
       setDescription(editing.description);
       setAmount(
         typeof editing.amount === "number" && !isNaN(editing.amount)
-          ? editing.amount.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+          ? editing.amount.toLocaleString("pt-BR", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })
           : String(editing.amount),
       );
       setDate(new Date(`${editing.date}T12:00:00`));
@@ -166,36 +169,43 @@ export function TransactionDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{editing ? "Editar transação" : "Nova transação"}</DialogTitle>
+          <DialogTitle className="text-xl">
+            {editing ? "Editar lançamento" : "Novo lançamento"}
+          </DialogTitle>
           <DialogDescription>
             Informe os dados do lançamento para manter o mês atualizado.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 gap-1 rounded-xl bg-secondary p-1">
-          {(["despesa", "receita"] as TxType[]).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => {
-                setType(option);
-                setCategoryId("");
-                setSubcategoryId("");
-                setCategoryName("");
-                setSubcategoryName("");
-              }}
-              className={cn(
-                "rounded-lg py-2 text-sm font-semibold transition-colors",
-                type === option
-                  ? option === "receita"
-                    ? "bg-success text-success-foreground"
-                    : "bg-danger text-danger-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {option === "despesa" ? "Despesa" : "Receita"}
-            </button>
-          ))}
+        <div className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
+          {(["despesa", "receita"] as TxType[]).map((option) => {
+            const active = type === option;
+            const Icon = option === "receita" ? ArrowUpRight : ArrowDownRight;
+            return (
+              <button
+                key={option}
+                type="button"
+                onClick={() => {
+                  setType(option);
+                  setCategoryId("");
+                  setSubcategoryId("");
+                  setCategoryName("");
+                  setSubcategoryName("");
+                }}
+                className={cn(
+                  "flex h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all",
+                  active
+                    ? option === "receita"
+                      ? "bg-success text-success-foreground shadow-soft"
+                      : "bg-primary text-primary-foreground shadow-soft"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="size-4" />
+                {option === "despesa" ? "Despesa" : "Receita"}
+              </button>
+            );
+          })}
         </div>
 
         <div className="grid gap-4">
@@ -213,14 +223,14 @@ export function TransactionDialog({
             <div className="grid gap-2">
               <Label htmlFor="valor">Valor (R$)</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
                   R$
                 </span>
                 <Input
                   id="valor"
                   inputMode="numeric"
                   placeholder="0,00"
-                  className="pl-9 font-medium"
+                  className="pl-10 font-semibold tabular-nums"
                   value={amount}
                   onChange={(e) => setAmount(formatCurrencyInput(e.target.value))}
                 />
@@ -232,7 +242,7 @@ export function TransactionDialog({
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className={cn("justify-start font-normal", !date && "text-muted-foreground")}
+                    className={cn("justify-start font-medium", !date && "text-muted-foreground")}
                   >
                     <CalendarIcon />
                     {date ? format(date, "dd/MM/yyyy") : "Selecionar"}
@@ -257,7 +267,9 @@ export function TransactionDialog({
               <Select
                 value={categoryId || categoryName}
                 onValueChange={(val) => {
-                  const matched = availableCategories.find((c) => c.categoria_id === val || c.categoria_nome === val);
+                  const matched = availableCategories.find(
+                    (c) => c.categoria_id === val || c.categoria_nome === val,
+                  );
                   if (matched) {
                     setCategoryId(matched.categoria_id);
                     setCategoryName(matched.categoria_nome);
@@ -293,7 +305,9 @@ export function TransactionDialog({
               <Select
                 value={subcategoryId || subcategoryName}
                 onValueChange={(val) => {
-                  const matched = availableSubcategories.find((s) => s.subcategoria_id === val || s.subcategoria_nome === val);
+                  const matched = availableSubcategories.find(
+                    (s) => s.subcategoria_id === val || s.subcategoria_nome === val,
+                  );
                   if (matched) {
                     setSubcategoryId(matched.subcategoria_id);
                     setSubcategoryName(matched.subcategoria_nome);
@@ -304,7 +318,9 @@ export function TransactionDialog({
                 disabled={!categoryId && !categoryName}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={categoryId || categoryName ? "Selecionar" : "Escolha a categoria"} />
+                  <SelectValue
+                    placeholder={categoryId || categoryName ? "Selecionar" : "Escolha a categoria"}
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {availableSubcategories.length > 0
@@ -337,7 +353,7 @@ export function TransactionDialog({
               ].map((option) => (
                 <Label
                   key={option.value}
-                  className="flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm font-medium has-data-[state=checked]:border-primary has-data-[state=checked]:bg-accent"
+                  className="flex h-11 cursor-pointer items-center gap-2.5 rounded-xl border bg-card px-3 text-sm font-medium transition-colors hover:border-ring/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-accent has-data-[state=checked]:text-accent-foreground"
                 >
                   <RadioGroupItem value={option.value} />
                   {option.label}
@@ -353,7 +369,7 @@ export function TransactionDialog({
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
-                    className={cn("justify-start font-normal", !endDate && "text-muted-foreground")}
+                    className={cn("justify-start font-medium", !endDate && "text-muted-foreground")}
                   >
                     <CalendarIcon />
                     {endDate ? format(endDate, "dd/MM/yyyy") : "Sem data de término"}
@@ -411,17 +427,13 @@ export function TransactionDialog({
             </div>
           )}
 
-          <Label className="flex cursor-pointer items-center gap-3 rounded-xl border bg-secondary/40 p-3 text-sm font-medium">
-            <Checkbox
-              className="rounded-[4px]"
-              checked={paid}
-              onCheckedChange={(v) => setPaid(v === true)}
-            />
+          <Label className="flex h-12 cursor-pointer items-center gap-3 rounded-xl border bg-secondary/40 px-3.5 text-sm font-medium transition-colors hover:border-ring/50">
+            <Checkbox checked={paid} onCheckedChange={(v) => setPaid(v === true)} />
             Já está {type === "receita" ? "recebido" : "pago"}
           </Label>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>

@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 export type TxType = "receita" | "despesa";
 export type TxStatus = "pago" | "pendente";
 export type Frequency =
@@ -98,11 +100,11 @@ export function mapDbTransactionToTransaction(
   }
 
   const categoryName = dbTx.categoria_id
-    ? categoriesMap.get(dbTx.categoria_id) ?? "Outros"
+    ? (categoriesMap.get(dbTx.categoria_id) ?? "Outros")
     : "Outros";
 
   const subcategoryName = dbTx.subcategoria_id
-    ? subcategoriesMap.get(dbTx.subcategoria_id) ?? ""
+    ? (subcategoriesMap.get(dbTx.subcategoria_id) ?? "")
     : "";
 
   return {
@@ -118,7 +120,10 @@ export function mapDbTransactionToTransaction(
     endDate: dbTx.transacao_data_fim ?? undefined,
     type: txType,
     frequency,
-    amount: typeof dbTx.transacao_valor === "number" ? dbTx.transacao_valor : Number(dbTx.transacao_valor) || 0,
+    amount:
+      typeof dbTx.transacao_valor === "number"
+        ? dbTx.transacao_valor
+        : Number(dbTx.transacao_valor) || 0,
     status: txStatus,
     userId: dbTx.user_id,
   };
@@ -174,6 +179,25 @@ export const monthNames = [
 export function formatBRL(value: number) {
   return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
+
+/**
+ * Paleta de gráficos do design system (tokens --chart-1..8 em styles.css).
+ * Usa variáveis CSS para acompanhar o tema claro/escuro automaticamente.
+ */
+export const chartColors = Array.from({ length: 8 }, (_, i) => `var(--chart-${i + 1})`);
+
+/** Estilo padrão do tooltip do Recharts, alinhado aos cards do sistema. */
+export const chartTooltipStyle: CSSProperties = {
+  backgroundColor: "var(--color-popover)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "1rem",
+  boxShadow: "var(--shadow-soft)",
+  color: "var(--color-foreground)",
+  fontFamily: "var(--font-sans)",
+  fontSize: "0.75rem",
+  fontWeight: 600,
+  padding: "0.6rem 0.8rem",
+};
 
 export function formatDate(iso: string) {
   const [y, m, d] = iso.split("-");

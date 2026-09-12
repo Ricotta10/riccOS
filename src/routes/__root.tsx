@@ -4,6 +4,8 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
+  useNavigate,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -11,28 +13,74 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportRiccosError } from "../lib/riccos-error-reporting";
+import { AuthProvider, useAuth } from "../lib/auth";
 import { AppShell } from "../components/riccos/app-shell";
+import { LogoMark, LogoTile } from "../components/riccos/brand";
 import { RiccosProvider } from "../components/riccos/store";
+import { GamificationProvider } from "../components/riccos/gamification";
+import { ThemeProvider, THEME_BOOT_SCRIPT } from "../components/riccos/theme";
+import { Button } from "../components/ui/button";
+
+function FullscreenLoader() {
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-5 bg-background">
+      <div className="relative grid size-20 place-items-center">
+        <span className="animate-orbit absolute inset-0 rounded-full border border-dashed border-primary/40" />
+        <span className="ring-gradient animate-orbit-fast absolute inset-2 rounded-full [mask:radial-gradient(farthest-side,transparent_calc(100%-2px),black_calc(100%-2px))] [-webkit-mask:radial-gradient(farthest-side,transparent_calc(100%-2px),black_calc(100%-2px))]" />
+        <LogoMark className="h-6 text-foreground" />
+      </div>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        Carregando
+      </p>
+    </div>
+  );
+}
+
+function StatusPage({
+  code,
+  title,
+  description,
+  actions,
+}: {
+  code?: string;
+  title: string;
+  description: string;
+  actions: ReactNode;
+}) {
+  return (
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background px-4">
+      <div aria-hidden className="grid-bg pointer-events-none absolute inset-0" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 size-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/15 blur-[120px]"
+      />
+      <div className="relative w-full max-w-md rounded-3xl border bg-card p-8 text-center shadow-soft">
+        <LogoTile tone="dark" className="mx-auto size-14" />
+        {code && (
+          <p className="mt-6 text-6xl font-semibold tracking-tight text-primary tabular-nums">
+            {code}
+          </p>
+        )}
+        <h1 className="mt-3 text-xl font-semibold tracking-tight">{title}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+        <div className="mt-6 flex flex-wrap justify-center gap-2">{actions}</div>
+      </div>
+    </div>
+  );
+}
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Go home
-          </Link>
-        </div>
-      </div>
-    </div>
+    <StatusPage
+      code="404"
+      title="Página não encontrada"
+      description="O endereço que você acessou não existe ou foi movido."
+      actions={
+        <Button asChild>
+          <Link to="/">Voltar ao início</Link>
+        </Button>
+      }
+    />
   );
 }
 
@@ -44,33 +92,25 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   }, [error]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
+    <StatusPage
+      title="Esta página não carregou"
+      description="Algo deu errado do nosso lado. Você pode tentar novamente ou voltar ao início."
+      actions={
+        <>
+          <Button
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
-          </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Go home
-          </a>
-        </div>
-      </div>
-    </div>
+            Tentar novamente
+          </Button>
+          <Button variant="outline" asChild>
+            <a href="/">Voltar ao início</a>
+          </Button>
+        </>
+      }
+    />
   );
 }
 
@@ -97,7 +137,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@RiccOS" },
-      { name: "theme-color", content: "#09090b" },
+      { name: "theme-color", content: "#000000" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
@@ -112,12 +152,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap",
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
       { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
       { rel: "manifest", href: "/site.webmanifest" },
     ],
+    scripts: [{ children: THEME_BOOT_SCRIPT }],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -127,7 +168,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
@@ -138,10 +179,6 @@ function RootShell({ children }: { children: ReactNode }) {
     </html>
   );
 }
-
-import { AuthProvider, useAuth } from "../lib/auth";
-import { useRouterState, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
 
 function AuthenticatedContent() {
   const { user, loading } = useAuth();
@@ -157,11 +194,7 @@ function AuthenticatedContent() {
   }, [user, loading, isLoginPage, navigate]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="size-8 animate-spin text-primary" />
-      </div>
-    );
+    return <FullscreenLoader />;
   }
 
   if (isLoginPage) {
@@ -199,11 +232,15 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RiccosProvider>
-          <AuthenticatedContent />
-        </RiccosProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <RiccosProvider>
+            <GamificationProvider>
+              <AuthenticatedContent />
+            </GamificationProvider>
+          </RiccosProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

@@ -5,7 +5,6 @@ import {
   ArrowUpRight,
   CheckCircle2,
   ChevronDown,
-  ChevronUp,
   Clock,
   Layers,
   PieChart as PieIcon,
@@ -13,6 +12,8 @@ import {
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import { PageHeader } from "@/components/riccos/app-shell";
+import { ScoreCard } from "@/components/riccos/season-widgets";
+import { StatCard } from "@/components/riccos/stat-card";
 import { useRiccos } from "@/components/riccos/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatBRL, formatDate, summarize } from "@/lib/finance-data";
+import {
+  chartColors,
+  chartTooltipStyle,
+  formatBRL,
+  formatDate,
+  summarize,
+} from "@/lib/finance-data";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/visao-geral")({
   head: () => ({
@@ -46,71 +54,6 @@ export const Route = createFileRoute("/visao-geral")({
   }),
   component: Overview,
 });
-
-const chartColors = [
-  "#6366F1",
-  "#EC4899",
-  "#10B981",
-  "#F59E0B",
-  "#8B5CF6",
-  "#3B82F6",
-  "#EF4444",
-  "#14B8A6",
-  "#F97316",
-  "#06B6D4",
-];
-
-function SummaryCard({
-  label,
-  value,
-  hint,
-  tone,
-  icon: Icon,
-}: {
-  label: string;
-  value: number;
-  hint: string;
-  tone: "success" | "danger" | "warning" | "neutral";
-  icon: React.ElementType;
-}) {
-  const toneClass =
-    tone === "success"
-      ? "text-success"
-      : tone === "danger"
-        ? "text-danger"
-        : tone === "warning"
-          ? "text-warning font-semibold"
-          : "text-foreground";
-  const bubble =
-    tone === "success"
-      ? "bg-success-soft text-success"
-      : tone === "danger"
-        ? "bg-danger-soft text-danger"
-        : tone === "warning"
-          ? "bg-warning-soft text-warning"
-          : "bg-secondary text-secondary-foreground";
-
-  return (
-    <Card className="shadow-none">
-      <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-2 pb-2">
-        <div className="min-w-0">
-          <CardDescription className="truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {label}
-          </CardDescription>
-          <CardTitle className={`mt-2 text-2xl font-bold tabular-nums ${toneClass}`}>
-            {formatBRL(value)}
-          </CardTitle>
-        </div>
-        <span className={`grid size-9 shrink-0 place-items-center rounded-xl ${bubble}`}>
-          <Icon className="size-4" />
-        </span>
-      </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </CardContent>
-    </Card>
-  );
-}
 
 function Overview() {
   const { monthTransactions } = useRiccos();
@@ -149,7 +92,7 @@ function Overview() {
     const totalSpent = Array.from(catMap.values()).reduce((a, b) => a + b.total, 0);
 
     const list = Array.from(catMap.entries())
-      .map(([name, obj], index) => {
+      .map(([name, obj]) => {
         const percentage = totalSpent > 0 ? (obj.total / totalSpent) * 100 : 0;
         const subcategories = Array.from(obj.subMap.entries())
           .map(([subName, subAmount]) => ({
@@ -159,15 +102,10 @@ function Overview() {
           }))
           .sort((a, b) => b.amount - a.amount);
 
-        return {
-          name,
-          amount: obj.total,
-          percentage,
-          subcategories,
-          color: chartColors[index % chartColors.length],
-        };
+        return { name, amount: obj.total, percentage, subcategories };
       })
-      .sort((a, b) => b.amount - a.amount);
+      .sort((a, b) => b.amount - a.amount)
+      .map((item, index) => ({ ...item, color: chartColors[index % chartColors.length] }));
 
     return { list, totalSpent };
   }, [monthTransactions]);
@@ -208,70 +146,81 @@ function Overview() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
+        eyebrow="Financeiro"
         title="Visão Geral"
         description="Resumo consolidado do mês selecionado, com foco em leitura rápida."
         showBalance={false}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard
-          label="Entradas (Receitas)"
+        <StatCard
+          label="Entradas"
           value={entradas}
           tone="success"
           icon={ArrowUpRight}
           hint="Receitas lançadas no mês"
         />
-        <SummaryCard
-          label="Saídas (Despesas)"
+        <StatCard
+          label="Saídas"
           value={saidas}
           tone="danger"
           icon={ArrowDownRight}
           hint="Despesas totais no mês"
         />
-        <SummaryCard
-          label="Total Pendente"
+        <StatCard
+          label="Pendente"
           value={pendente}
           tone="warning"
           icon={Clock}
           hint="Contas a vencer no mês"
         />
-        <SummaryCard
-          label="Total Pago"
+        <StatCard
+          label="Pago"
           value={pago}
-          tone="success"
+          tone="primary"
           icon={CheckCircle2}
           hint="Despesas já liquidadas"
         />
       </div>
 
-      {entradas > 0 && (
-        <Card className="shadow-none">
-          <CardContent className="p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-1">
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Comprometimento da Renda
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <ScoreCard className="lg:col-span-5" />
+        {entradas > 0 && (
+          <Card className="lg:col-span-7">
+            <CardContent className="p-5 sm:p-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Comprometimento da renda
+                  </span>
+                  <p className="text-sm font-medium">
+                    <span className="text-primary font-semibold">{expensePercentage}%</span> das
+                    receitas do mês estão comprometidas com despesas.
+                  </p>
+                </div>
+                <span className="text-lg font-semibold tabular-nums">
+                  {formatBRL(saidas)}{" "}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    / {formatBRL(entradas)}
+                  </span>
                 </span>
-                <p className="text-sm font-medium">
-                  {expensePercentage}% das receitas do mês estão comprometidas com despesas.
-                </p>
               </div>
-              <span className="text-lg font-bold tabular-nums">
-                {formatBRL(saidas)} / {formatBRL(entradas)}
-              </span>
-            </div>
-            <Progress value={expensePercentage} className="mt-3 h-2" />
-          </CardContent>
-        </Card>
-      )}
+              <Progress value={expensePercentage} className="mt-4 h-2.5" />
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Seção de Gráficos e Categorias Detalhadas */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Gráfico Rosca das Categorias */}
-        <Card className="shadow-none lg:col-span-5">
+        <Card className="lg:col-span-5">
           <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <PieIcon className="size-4 text-primary" /> Distribuição de Gastos
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                <PieIcon className="size-4" />
+              </span>
+              Distribuição de gastos
             </CardTitle>
             <CardDescription className="text-xs">
               Proporção de consumo por categoria no mês selecionado.
@@ -279,70 +228,69 @@ function Overview() {
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center pt-0">
             {categoryBreakdown.list.length > 0 ? (
-              <div className="h-64 w-full">
+              <div className="relative h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={categoryBreakdown.list}
                       cx="50%"
                       cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
+                      innerRadius={68}
+                      outerRadius={96}
                       paddingAngle={3}
+                      cornerRadius={6}
                       dataKey="amount"
+                      stroke="none"
                     >
                       {categoryBreakdown.list.map((entry) => (
-                        <Cell key={entry.name} fill={entry.color} stroke="none" />
+                        <Cell key={entry.name} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip
                       formatter={(value: number) => [formatBRL(value), "Gasto"]}
-                      contentStyle={{
-                        backgroundColor: "var(--color-card)",
-                        borderColor: "var(--color-border)",
-                        borderRadius: "0.75rem",
-                        fontSize: "0.75rem",
-                        fontWeight: 600,
-                      }}
+                      contentStyle={chartTooltipStyle}
+                      itemStyle={{ color: "var(--color-foreground)" }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    Total
+                  </span>
+                  <span className="text-lg font-semibold tabular-nums">
+                    {formatBRL(categoryBreakdown.totalSpent)}
+                  </span>
+                </div>
               </div>
             ) : (
               <div className="py-12 text-center text-xs text-muted-foreground">
                 Nenhuma despesa registrada para o gráfico.
               </div>
             )}
-            <div className="w-full text-center text-xs text-muted-foreground">
-              Total em despesas:{" "}
-              <strong className="text-foreground">{formatBRL(categoryBreakdown.totalSpent)}</strong>
-            </div>
           </CardContent>
         </Card>
 
         {/* Lista Detalhada com Acordeão de Subcategorias */}
-        <Card className="shadow-none lg:col-span-7">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <Card className="lg:col-span-7">
+          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
             <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Layers className="size-4 text-primary" /> Gastos por Categoria & Subcategoria
+              <CardTitle className="flex items-center gap-2 text-base">
+                <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                  <Layers className="size-4" />
+                </span>
+                Categorias & subcategorias
               </CardTitle>
-              <CardDescription className="text-xs">
-                Clique na categoria para expandir e ver o detalhamento interno.
+              <CardDescription className="mt-1.5 text-xs">
+                Toque na categoria para ver o detalhamento interno.
               </CardDescription>
             </div>
             {categoryBreakdown.list.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                onClick={toggleExpandAll}
-              >
-                {allExpanded ? "Recolher Todos" : "Expandir Todos"}
+              <Button variant="ghost" size="sm" onClick={toggleExpandAll}>
+                {allExpanded ? "Recolher" : "Expandir"}
               </Button>
             )}
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2.5">
             {categoryBreakdown.list.map((cat) => {
               const isExpanded = !!expandedCategories[cat.name];
               const hasSub = cat.subcategories.length > 0;
@@ -350,75 +298,64 @@ function Overview() {
               return (
                 <div
                   key={cat.name}
-                  className="rounded-xl border bg-card p-3.5 transition-colors hover:border-border/80 space-y-2.5"
+                  className="rounded-2xl border bg-background/40 p-3.5 transition-colors hover:border-ring/40"
                 >
-                  <div
-                    className="flex items-center justify-between gap-3 cursor-pointer select-none"
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 text-left"
                     onClick={() => toggleCategory(cat.name)}
+                    aria-expanded={isExpanded}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
                       <span
-                        className="size-3 rounded-full shrink-0"
-                        style={{ backgroundColor: cat.color }}
+                        className="size-2.5 shrink-0 rounded-full shadow-[0_0_8px_currentColor]"
+                        style={{ backgroundColor: cat.color, color: cat.color }}
                       />
-                      <span className="font-semibold text-sm text-foreground truncate">
-                        {cat.name}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        ({Math.round(cat.percentage)}%)
+                      <span className="truncate text-sm font-semibold">{cat.name}</span>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {Math.round(cat.percentage)}%
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-bold text-sm tabular-nums text-foreground">
+                    <div className="flex shrink-0 items-center gap-2">
+                      <span className="text-sm font-semibold tabular-nums">
                         {formatBRL(cat.amount)}
                       </span>
                       {hasSub && (
-                        <span className="text-muted-foreground p-0.5 hover:text-foreground">
-                          {isExpanded ? (
-                            <ChevronUp className="size-4" />
-                          ) : (
-                            <ChevronDown className="size-4" />
+                        <ChevronDown
+                          className={cn(
+                            "size-4 text-muted-foreground transition-transform duration-300",
+                            isExpanded && "rotate-180",
                           )}
-                        </span>
+                        />
                       )}
                     </div>
-                  </div>
+                  </button>
 
                   <Progress
                     value={cat.percentage}
-                    className="h-1.5"
-                    style={
-                      {
-                        "--progress-background": cat.color,
-                      } as React.CSSProperties
-                    }
+                    className="mt-3 h-1.5"
+                    style={{ "--progress-background": cat.color } as React.CSSProperties}
                   />
 
-                  {/* Detalhamento das Subcategorias em Acordeão */}
                   {isExpanded && hasSub && (
-                    <div className="pt-2 border-t border-border/50 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                        Subcategorias
-                      </span>
-                      <div className="space-y-1.5 pl-2">
-                        {cat.subcategories.map((sub) => (
-                          <div
-                            key={sub.name}
-                            className="flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-muted/40 hover:bg-muted/70 transition-colors"
-                          >
-                            <span className="text-muted-foreground font-medium truncate">
-                              {sub.name}
+                    <div className="mt-3 space-y-1.5 border-t border-border/60 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                      {cat.subcategories.map((sub) => (
+                        <div
+                          key={sub.name}
+                          className="flex items-center justify-between rounded-xl bg-secondary/60 px-3 py-2 text-xs transition-colors hover:bg-secondary"
+                        >
+                          <span className="truncate font-medium text-muted-foreground">
+                            {sub.name}
+                          </span>
+                          <div className="flex items-center gap-2 tabular-nums">
+                            <span className="text-[11px] text-muted-foreground">
+                              {Math.round(sub.percentageOfCategory)}%
                             </span>
-                            <div className="flex items-center gap-2 font-semibold tabular-nums">
-                              <span className="text-[11px] text-muted-foreground font-normal">
-                                ({Math.round(sub.percentageOfCategory)}%)
-                              </span>
-                              <span>{formatBRL(sub.amount)}</span>
-                            </div>
+                            <span className="font-semibold">{formatBRL(sub.amount)}</span>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -426,7 +363,7 @@ function Overview() {
             })}
 
             {categoryBreakdown.list.length === 0 && (
-              <div className="py-8 text-center text-xs text-muted-foreground">
+              <div className="rounded-2xl border border-dashed py-10 text-center text-xs text-muted-foreground">
                 Nenhum lançamento de despesa no mês para categorização.
               </div>
             )}
@@ -434,48 +371,43 @@ function Overview() {
         </Card>
       </div>
 
-      {/* Próximos Vencimentos e Lançamentos Recentes */}
-      <Card className="shadow-none">
+      {/* Lançamentos do mês */}
+      <Card>
         <CardHeader>
-          <CardTitle className="text-base">Lançamentos do Mês</CardTitle>
+          <CardTitle className="text-base">Lançamentos do mês</CardTitle>
           <CardDescription className="text-xs">
             Lista rápida de contas pagas e a vencer no mês selecionado.
           </CardDescription>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 sm:p-0">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-6">Data</TableHead>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="pl-5 sm:pl-6">Data</TableHead>
                   <TableHead>Descrição</TableHead>
-                  <TableHead>Categoria</TableHead>
+                  <TableHead className="hidden lg:table-cell">Categoria</TableHead>
                   <TableHead className="text-right">Valor</TableHead>
-                  <TableHead className="pr-6">Status</TableHead>
+                  <TableHead className="pr-5 text-right sm:pr-6">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {upcoming.map((tx) => (
                   <TableRow key={tx.id}>
-                    <TableCell className="pl-6 text-xs text-muted-foreground tabular-nums">
+                    <TableCell className="pl-5 text-xs tabular-nums text-muted-foreground sm:pl-6">
                       {formatDate(tx.date)}
                     </TableCell>
-                    <TableCell className="font-medium text-sm max-w-48 truncate">
+                    <TableCell className="max-w-48 truncate text-sm font-medium">
                       {tx.description}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{tx.category}</TableCell>
-                    <TableCell className="text-right text-sm font-semibold tabular-nums text-foreground">
+                    <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">
+                      {tx.category}
+                    </TableCell>
+                    <TableCell className="text-right text-sm font-semibold tabular-nums">
                       {formatBRL(tx.amount)}
                     </TableCell>
-                    <TableCell className="pr-6">
-                      <Badge
-                        variant="outline"
-                        className={`border-transparent ${
-                          tx.status === "pago"
-                            ? "bg-success-soft text-success"
-                            : "bg-warning-soft text-warning-foreground"
-                        }`}
-                      >
+                    <TableCell className="pr-5 text-right sm:pr-6">
+                      <Badge variant={tx.status === "pago" ? "success" : "warning"}>
                         {tx.status === "pago" ? "Pago" : "Pendente"}
                       </Badge>
                     </TableCell>

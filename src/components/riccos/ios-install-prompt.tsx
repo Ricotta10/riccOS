@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Share, PlusSquare, X, Smartphone, CheckCircle2 } from "lucide-react";
+import { Share, PlusSquare, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LogoTile } from "./brand";
 
 export function IosInstallPrompt() {
   const [showPrompt, setShowPrompt] = useState(false);
@@ -40,62 +41,60 @@ export function IosInstallPrompt() {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-md animate-in fade-in slide-in-from-bottom-4 duration-300">
-      <div className="relative rounded-2xl border border-border/60 bg-card/95 p-4 shadow-2xl backdrop-blur-xl">
+    <div
+      className="fixed inset-x-3 z-50 mx-auto max-w-md animate-in fade-in slide-in-from-bottom-4 duration-300"
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 6rem)" }}
+    >
+      <div className="glass relative rounded-3xl p-4 shadow-2xl">
         <button
           onClick={handleDismiss}
-          className="absolute right-3 top-3 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
           aria-label="Fechar"
         >
           <X className="size-4" />
         </button>
 
         <div className="flex items-start gap-3">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Smartphone className="size-6 text-emerald-400" />
-          </div>
+          <LogoTile tone="dark" className="size-11 rounded-2xl" />
 
-          <div className="space-y-2 pr-6">
+          <div className="space-y-2.5 pr-6">
             <div>
-              <h3 className="font-semibold text-sm text-foreground flex items-center gap-1.5">
+              <h3 className="flex flex-wrap items-center gap-1.5 text-sm font-semibold">
                 Instale o RiccOS no seu iPhone
-                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                  App PWA
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary ring-1 ring-primary/20">
+                  App
                 </span>
               </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Use o sistema como um app nativo, sem barra de navegação do Safari e com inicialização rápida.
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Use o sistema como um app nativo, em tela cheia e com inicialização rápida.
               </p>
             </div>
 
-            <div className="space-y-1.5 pt-1 text-xs text-foreground/90 bg-muted/40 p-2.5 rounded-lg border border-border/40">
-              <div className="flex items-center gap-2">
-                <span className="flex size-5 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
-                  1
-                </span>
-                <span>Toque no botão <Share className="inline-block size-3.5 mx-0.5 text-blue-400" /> <strong>Compartilhar</strong> no Safari</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="flex size-5 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
-                  2
-                </span>
-                <span>Selecione <PlusSquare className="inline-block size-3.5 mx-0.5 text-emerald-400" /> <strong>Adicionar à Tela de Início</strong></span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="flex size-5 items-center justify-center rounded-full bg-primary/20 text-[10px] font-bold text-primary">
-                  3
-                </span>
-                <span>Toque em <strong>Adicionar</strong> no canto superior direito</span>
-              </div>
-            </div>
+            <ol className="space-y-1.5 rounded-2xl border bg-background/60 p-2.5 text-xs">
+              {[
+                <>
+                  Toque em <Share className="mx-0.5 inline-block size-3.5 text-primary" />{" "}
+                  <strong>Compartilhar</strong> no Safari
+                </>,
+                <>
+                  Selecione <PlusSquare className="mx-0.5 inline-block size-3.5 text-primary" />{" "}
+                  <strong>Adicionar à Tela de Início</strong>
+                </>,
+                <>
+                  Toque em <strong>Adicionar</strong> no canto superior direito
+                </>,
+              ].map((step, i) => (
+                <li key={i} className="flex items-center gap-2">
+                  <span className="grid size-5 shrink-0 place-items-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
+                    {i + 1}
+                  </span>
+                  <span>{step}</span>
+                </li>
+              ))}
+            </ol>
 
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                onClick={handleDismiss}
-              >
+            <div className="flex items-center justify-end pt-0.5">
+              <Button variant="secondary" size="sm" onClick={handleDismiss}>
                 Entendi
               </Button>
             </div>

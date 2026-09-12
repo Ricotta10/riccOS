@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MetasRouteImport } from './routes/metas'
+import { Route as MissoesRouteImport } from './routes/missoes'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as RiccosRouteImport } from './routes/riccos'
 import { Route as TransacoesRouteImport } from './routes/transacoes'
@@ -30,6 +31,11 @@ const LoginRoute = LoginRouteImport.update({
 const MetasRoute = MetasRouteImport.update({
   id: '/metas',
   path: '/metas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MissoesRoute = MissoesRouteImport.update({
+  id: '/missoes',
+  path: '/missoes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RelatoriosRoute = RelatoriosRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/metas': typeof MetasRoute
+  '/missoes': typeof MissoesRoute
   '/relatorios': typeof RelatoriosRoute
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/metas': typeof MetasRoute
+  '/missoes': typeof MissoesRoute
   '/relatorios': typeof RelatoriosRoute
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/metas': typeof MetasRoute
+  '/missoes': typeof MissoesRoute
   '/relatorios': typeof RelatoriosRoute
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/metas'
+    | '/missoes'
     | '/relatorios'
     | '/riccos'
     | '/transacoes'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/metas'
+    | '/missoes'
     | '/relatorios'
     | '/riccos'
     | '/transacoes'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/metas'
+    | '/missoes'
     | '/relatorios'
     | '/riccos'
     | '/transacoes'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
   MetasRoute: typeof MetasRoute
+  MissoesRoute: typeof MissoesRoute
   RelatoriosRoute: typeof RelatoriosRoute
   RiccosRoute: typeof RiccosRoute
   TransacoesRoute: typeof TransacoesRoute
@@ -142,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/metas'
       fullPath: '/metas'
       preLoaderRoute: typeof MetasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/missoes': {
+      id: '/missoes'
+      path: '/missoes'
+      fullPath: '/missoes'
+      preLoaderRoute: typeof MissoesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/relatorios': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
   MetasRoute: MetasRoute,
+  MissoesRoute: MissoesRoute,
   RelatoriosRoute: RelatoriosRoute,
   RiccosRoute: RiccosRoute,
   TransacoesRoute: TransacoesRoute,

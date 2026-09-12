@@ -17,7 +17,7 @@ import { PageHeader } from "@/components/riccos/app-shell";
 import { useRiccos } from "@/components/riccos/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { categoryList, formatBRL } from "@/lib/finance-data";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/metas")({
   head: () => ({
@@ -59,10 +60,26 @@ const icons: Record<string, React.ElementType> = {
 };
 
 function tone(pct: number) {
-  if (pct >= 100) return { bar: "bg-danger", text: "text-danger", track: "bg-danger-soft" };
+  if (pct >= 100)
+    return {
+      bar: "bg-danger",
+      text: "text-danger",
+      track: "bg-danger-soft",
+      glow: "shadow-[0_0_12px_var(--color-danger)]",
+    };
   if (pct >= 76)
-    return { bar: "bg-warning", text: "text-warning-foreground", track: "bg-warning-soft" };
-  return { bar: "bg-success", text: "text-success", track: "bg-success-soft" };
+    return {
+      bar: "bg-warning",
+      text: "text-warning-foreground",
+      track: "bg-warning-soft",
+      glow: "shadow-[0_0_12px_var(--color-warning)]",
+    };
+  return {
+    bar: "bg-success",
+    text: "text-success",
+    track: "bg-success-soft",
+    glow: "shadow-[0_0_12px_var(--color-success)]",
+  };
 }
 
 function formatCurrencyInput(val: string): string {
@@ -83,7 +100,11 @@ function parseCurrencyToNumber(val: string): number {
 
 function GoalsPage() {
   const { month, year, monthTransactions, dbCategories, dbGoals, setGoal } = useRiccos();
-  const [editing, setEditing] = useState<{ categoryId: string; categoryName: string; limit: string } | null>(null);
+  const [editing, setEditing] = useState<{
+    categoryId: string;
+    categoryName: string;
+    limit: string;
+  } | null>(null);
 
   const currentMonth1Indexed = month + 1;
 
@@ -119,10 +140,21 @@ function GoalsPage() {
       const categoryTxs = monthTransactions.filter((tx) => {
         if (tx.type !== "despesa") return false;
         if (tx.categoryId && cat.categoria_id && tx.categoryId === cat.categoria_id) return true;
-        if (tx.category && cat.categoria_nome && tx.category.toLowerCase() === cat.categoria_nome.toLowerCase()) return true;
+        if (
+          tx.category &&
+          cat.categoria_nome &&
+          tx.category.toLowerCase() === cat.categoria_nome.toLowerCase()
+        )
+          return true;
         // Normalização sem acentos (ex: alimentacao vs alimentação)
-        const normTxCat = tx.category?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-        const normDbCat = cat.categoria_nome?.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const normTxCat = tx.category
+          ?.normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
+        const normDbCat = cat.categoria_nome
+          ?.normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLowerCase();
         return normTxCat === normDbCat;
       });
 
@@ -160,24 +192,35 @@ function GoalsPage() {
     });
 
     // LOG DEDICADO PARA A CATEGORIA DE ALIMENTAÇÃO
-    const alimentacaoData = sortedResult.find(r => 
-      r.categoryName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().includes("alimenta")
+    const alimentacaoData = sortedResult.find((r) =>
+      r.categoryName
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .includes("alimenta"),
     );
 
     console.group(`🍎 [TESTE ALIMENTAÇÃO] Período: ${currentMonth1Indexed}/${year}`);
     console.log(`📌 Objeto da Categoria Alimentação:`, alimentacaoData);
     if (alimentacaoData) {
       console.log(`💰 Total Gasto Calculado na Categoria: R$ ${alimentacaoData.spent.toFixed(2)}`);
-      console.log(`🎯 Meta do Mês (${currentMonth1Indexed}/${year}): R$ ${alimentacaoData.limit.toFixed(2)}`);
-      console.log(`📋 Lista de Transações de Alimentação neste Mês (${alimentacaoData.txCount}):`, alimentacaoData.txs.map(t => ({
-        descricao: t.description,
-        valor: t.amount,
-        dataVencimento: t.date,
-        status: t.status,
-        frequencia: t.frequency
-      })));
+      console.log(
+        `🎯 Meta do Mês (${currentMonth1Indexed}/${year}): R$ ${alimentacaoData.limit.toFixed(2)}`,
+      );
+      console.log(
+        `📋 Lista de Transações de Alimentação neste Mês (${alimentacaoData.txCount}):`,
+        alimentacaoData.txs.map((t) => ({
+          descricao: t.description,
+          valor: t.amount,
+          dataVencimento: t.date,
+          status: t.status,
+          frequencia: t.frequency,
+        })),
+      );
     } else {
-      console.warn("⚠️ Categoria de Alimentação não foi encontrada na lista de categorias do banco.");
+      console.warn(
+        "⚠️ Categoria de Alimentação não foi encontrada na lista de categorias do banco.",
+      );
     }
     console.groupEnd();
 
@@ -192,18 +235,27 @@ function GoalsPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
+        eyebrow="Financeiro"
         title="Metas"
         description="Defina e acompanhe limites de gastos por categoria para o mês selecionado."
         showBalance={false}
       />
 
-      <Card className="shadow-none">
-        <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+      {/* Orçamento global */}
+      <Card className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-16 -top-16 size-56 rounded-full bg-primary/15 blur-3xl"
+        />
+        <CardHeader className="relative grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
           <div className="min-w-0">
-            <CardDescription className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              <Target className="size-4" /> Orçamento global de metas do mês
-            </CardDescription>
-            <CardTitle className="mt-2 text-2xl font-bold tabular-nums">
+            <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              <span className="grid size-7 place-items-center rounded-lg bg-primary/10 text-primary">
+                <Target className="size-3.5" />
+              </span>
+              Orçamento global do mês
+            </p>
+            <CardTitle className="mt-3 text-2xl font-semibold tabular-nums sm:text-3xl">
               {formatBRL(totalSpent)}{" "}
               <span className="text-base font-medium text-muted-foreground">
                 de {formatBRL(totalLimit)}
@@ -211,16 +263,22 @@ function GoalsPage() {
             </CardTitle>
           </div>
           <div className="shrink-0 text-right">
-            <p className={`text-2xl font-bold tabular-nums ${globalTone.text}`}>
+            <p
+              className={cn("text-3xl font-semibold tabular-nums tracking-tight", globalTone.text)}
+            >
               {Math.round(globalPct)}%
             </p>
             <p className="text-xs text-muted-foreground">comprometido</p>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className={`h-2.5 w-full overflow-hidden rounded-full ${globalTone.track}`}>
+        <CardContent className="relative">
+          <div className={cn("h-2.5 w-full overflow-hidden rounded-full", globalTone.track)}>
             <div
-              className={`h-full rounded-full transition-all ${globalTone.bar}`}
+              className={cn(
+                "h-full rounded-full transition-all duration-700",
+                globalTone.bar,
+                globalTone.glow,
+              )}
               style={{ width: `${Math.min(100, globalPct)}%` }}
             />
           </div>
@@ -232,74 +290,93 @@ function GoalsPage() {
         </CardContent>
       </Card>
 
+      {/* Cards por categoria */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {categoryGoalsList.map((item) => {
           const t = tone(item.pct);
           const Icon = icons[item.categoryName] ?? Wallet;
+          const hasGoal = item.limit > 0;
 
           return (
-            <Card key={item.categoryId} className="shadow-none flex flex-col justify-between">
-              <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+            <Card
+              key={item.categoryId}
+              className="group flex flex-col justify-between transition-all hover:-translate-y-0.5 hover:border-ring/40"
+            >
+              <CardHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 pb-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary text-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
                     <Icon className="size-4" />
                   </span>
                   <CardTitle className="truncate text-base">{item.categoryName}</CardTitle>
                 </div>
-                {item.limit > 0 && item.pct >= 100 ? (
-                  <Badge
-                    variant="outline"
-                    className="shrink-0 border-transparent bg-danger-soft text-danger"
-                  >
-                    <AlertTriangle className="size-3 mr-1" /> Teto Excedido
+                {hasGoal && item.pct >= 100 ? (
+                  <Badge variant="destructive" className="shrink-0">
+                    <AlertTriangle className="size-3" /> Excedido
                   </Badge>
-                ) : item.limit > 0 && item.pct < 100 ? (
-                  <Badge
-                    variant="outline"
-                    className="shrink-0 border-transparent bg-success-soft text-success"
-                  >
-                    <CheckCircle2 className="size-3 mr-1" /> Dentro da Meta
+                ) : hasGoal ? (
+                  <Badge variant="success" className="shrink-0">
+                    <CheckCircle2 className="size-3" /> Na meta
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="shrink-0 text-muted-foreground">
-                    Sem Meta
+                  <Badge variant="secondary" className="shrink-0 text-muted-foreground">
+                    Sem meta
                   </Badge>
                 )}
               </CardHeader>
 
               <CardContent className="space-y-3">
                 <p className="text-sm">
-                  <span className="text-lg font-bold tabular-nums">{formatBRL(item.spent)}</span>
+                  <span className="text-xl font-semibold tabular-nums">
+                    {formatBRL(item.spent)}
+                  </span>
                   <span className="text-muted-foreground">
                     {" "}
-                    de {item.limit > 0 ? formatBRL(item.limit) : "Sem limite"}
+                    {hasGoal ? `de ${formatBRL(item.limit)}` : "· sem teto definido"}
                   </span>
                 </p>
 
-                <div className={`h-2 w-full overflow-hidden rounded-full ${t.track}`}>
+                <div
+                  className={cn(
+                    "h-2 w-full overflow-hidden rounded-full",
+                    hasGoal ? t.track : "bg-secondary",
+                  )}
+                >
                   <div
-                    className={`h-full rounded-full transition-all ${item.limit > 0 ? t.bar : "bg-muted"}`}
-                    style={{ width: `${item.limit > 0 ? Math.min(100, item.pct) : 0}%` }}
+                    className={cn(
+                      "h-full rounded-full transition-all duration-700",
+                      hasGoal ? t.bar : "bg-muted",
+                    )}
+                    style={{ width: `${hasGoal ? Math.min(100, item.pct) : 0}%` }}
                   />
                 </div>
 
                 <div className="flex items-center justify-between gap-2 pt-1">
-                  <span className={`text-xs font-semibold tabular-nums ${item.limit > 0 ? t.text : "text-muted-foreground"}`}>
-                    {item.limit > 0 ? `${Math.round(item.pct)}% consumido` : "Sem meta definida"}
+                  <span
+                    className={cn(
+                      "text-xs font-semibold tabular-nums",
+                      hasGoal ? t.text : "text-muted-foreground",
+                    )}
+                  >
+                    {hasGoal ? `${Math.round(item.pct)}% consumido` : "Defina um teto"}
                   </span>
                   <Button
-                    variant="secondary"
+                    variant={hasGoal ? "secondary" : "default"}
                     size="sm"
-                    className="shrink-0 text-xs font-semibold"
+                    className="shrink-0"
                     onClick={() =>
                       setEditing({
                         categoryId: item.categoryId,
                         categoryName: item.categoryName,
-                        limit: item.limit > 0 ? item.limit.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "",
+                        limit: hasGoal
+                          ? item.limit.toLocaleString("pt-BR", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })
+                          : "",
                       })
                     }
                   >
-                    {item.limit > 0 ? "Ajustar Meta" : "Definir Meta"}
+                    {hasGoal ? "Ajustar" : "Definir meta"}
                   </Button>
                 </div>
               </CardContent>
@@ -311,22 +388,22 @@ function GoalsPage() {
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Meta — {editing?.categoryName}</DialogTitle>
+            <DialogTitle>Meta · {editing?.categoryName}</DialogTitle>
             <DialogDescription>
               Defina o valor da meta de gastos para {editing?.categoryName} neste mês.
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
-            <Label htmlFor="teto">Valor da Meta (R$)</Label>
+            <Label htmlFor="teto">Valor da meta (R$)</Label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
+              <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
                 R$
               </span>
               <Input
                 id="teto"
                 inputMode="numeric"
                 placeholder="0,00"
-                className="pl-9 font-medium"
+                className="h-12 pl-10 text-lg font-semibold tabular-nums"
                 value={editing?.limit ?? ""}
                 onChange={(e) => {
                   const formatted = formatCurrencyInput(e.target.value);
@@ -335,7 +412,7 @@ function GoalsPage() {
               />
             </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setEditing(null)}>
               Cancelar
             </Button>
@@ -347,7 +424,7 @@ function GoalsPage() {
                 setEditing(null);
               }}
             >
-              Salvar Meta
+              Salvar meta
             </Button>
           </DialogFooter>
         </DialogContent>

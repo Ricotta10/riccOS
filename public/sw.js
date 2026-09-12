@@ -1,11 +1,12 @@
-const CACHE_NAME = 'riccos-pwa-v1';
+const CACHE_NAME = 'riccos-pwa-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/favicon.ico',
   '/apple-touch-icon.png',
   '/icon-192.png',
   '/icon-512.png',
-  '/site.webmanifest'
+  '/site.webmanifest',
+  '/logo-mask.png'
 ];
 
 // Install event - caching essential shell assets

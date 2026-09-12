@@ -1,6 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { MoreHorizontal, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 
 import { PageHeader } from "@/components/riccos/app-shell";
 import { useRiccos } from "@/components/riccos/store";
@@ -37,6 +45,7 @@ import {
   frequencyLabel,
   type Transaction,
 } from "@/lib/finance-data";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/transacoes")({
   head: () => ({
@@ -56,6 +65,33 @@ export const Route = createFileRoute("/transacoes")({
   }),
   component: TransactionsPage,
 });
+
+function StatusBadge({ status, onClick }: { status: Transaction["status"]; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} title="Alternar status" className="rounded-full">
+      <Badge
+        variant={status === "pago" ? "success" : "warning"}
+        className="cursor-pointer transition-transform hover:scale-105"
+      >
+        {status === "pago" ? "Pago" : "Pendente"}
+      </Badge>
+    </button>
+  );
+}
+
+function TypeIcon({ type }: { type: Transaction["type"] }) {
+  const isIncome = type === "receita";
+  return (
+    <span
+      className={cn(
+        "grid size-9 shrink-0 place-items-center rounded-xl",
+        isIncome ? "bg-success-soft text-success" : "bg-secondary text-foreground",
+      )}
+    >
+      {isIncome ? <ArrowUpRight className="size-4" /> : <ArrowDownRight className="size-4" />}
+    </span>
+  );
+}
 
 function TransactionsPage() {
   const { monthTransactions, toggleStatus, removeTransaction, dbCategories } = useRiccos();
@@ -84,29 +120,45 @@ function TransactionsPage() {
     [monthTransactions, query, type, category, status],
   );
 
+  const openNew = () => {
+    setEditing(null);
+    setOpen(true);
+  };
+
+  const openEdit = (tx: Transaction) => {
+    setEditing(tx);
+    setOpen(true);
+  };
+
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
+        eyebrow="Financeiro"
         title="Transações"
         description="Todos os lançamentos do mês selecionado, com filtros e edição rápida."
         showBalance={false}
-      />
+      >
+        <Button onClick={openNew} className="h-11 w-full sm:h-10 sm:w-auto">
+          <Plus /> Novo lançamento
+        </Button>
+      </PageHeader>
 
-      <Card className="shadow-none">
-        <CardContent className="p-6 space-y-6">
+      {/* Filtros */}
+      <Card>
+        <CardContent className="p-4 sm:p-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="relative min-w-0 flex-1">
-              <Search className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Buscar por descrição..."
+                placeholder="Buscar por descrição…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="pl-10 h-11 sm:h-10 text-sm"
+                className="h-11 pl-10 sm:h-10"
               />
             </div>
             <div className="grid grid-cols-3 gap-2 lg:w-auto">
               <Select value={type} onValueChange={setType}>
-                <SelectTrigger className="h-11 sm:h-10 text-xs sm:text-sm">
+                <SelectTrigger className="h-11 text-xs sm:h-10 sm:text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -116,7 +168,7 @@ function TransactionsPage() {
                 </SelectContent>
               </Select>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-11 sm:h-10 text-xs sm:text-sm">
+                <SelectTrigger className="h-11 text-xs sm:h-10 sm:text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -129,7 +181,7 @@ function TransactionsPage() {
                 </SelectContent>
               </Select>
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger className="h-11 sm:h-10 text-xs sm:text-sm">
+                <SelectTrigger className="h-11 text-xs sm:h-10 sm:text-sm">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -139,207 +191,152 @@ function TransactionsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setOpen(true);
-              }}
-              className="shrink-0 h-11 sm:h-10 w-full lg:w-auto font-semibold gap-2"
-            >
-              <Plus className="size-4" /> Adicionar Lançamento
-            </Button>
           </div>
+        </CardContent>
+      </Card>
 
-          {/* Mobile Card List View */}
-          <div className="space-y-3 md:hidden pt-2">
-            {rows.map((tx) => (
-              <div
-                key={tx.id}
-                className="rounded-2xl border border-border/80 bg-card p-4 shadow-2xs space-y-3"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-muted-foreground tabular-nums">
-                    {formatDate(tx.date)}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => toggleStatus(tx.id)}
-                      title="Alternar status"
-                    >
-                      <Badge
-                        variant="outline"
-                        className={`cursor-pointer border-transparent ${
-                          tx.status === "pago"
-                            ? "bg-success-soft text-success"
-                            : "bg-warning-soft text-warning-foreground"
-                        }`}
-                      >
-                        {tx.status === "pago" ? "Pago" : "Pendente"}
-                      </Badge>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-sm text-foreground truncate">
-                      {tx.description}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      <span className="font-medium">{tx.category}</span>
-                      {tx.subcategory ? ` / ${tx.subcategory}` : ""}
-                    </p>
-                  </div>
+      {/* Mobile: lista em cards */}
+      <div className="space-y-3 md:hidden">
+        {rows.map((tx) => (
+          <Card key={tx.id} className="p-4">
+            <div className="flex items-start gap-3">
+              <TypeIcon type={tx.type} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-sm font-semibold">{tx.description}</p>
                   <span
-                    className={`text-base font-bold tabular-nums shrink-0 ${
-                      tx.type === "receita" ? "text-success" : "text-foreground"
-                    }`}
+                    className={cn(
+                      "shrink-0 text-sm font-semibold tabular-nums",
+                      tx.type === "receita" ? "text-success" : "text-foreground",
+                    )}
                   >
                     {tx.type === "receita" ? "+" : "−"} {formatBRL(tx.amount)}
                   </span>
                 </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
-                  <span className="text-muted-foreground font-medium">
-                    {frequencyLabel(tx.frequency)}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => {
-                        setEditing(tx);
-                        setOpen(true);
-                      }}
-                    >
-                      <Pencil className="size-3.5 mr-1" /> Editar
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2 text-xs text-destructive hover:text-destructive"
-                      onClick={() => removeTransaction(tx.id)}
-                    >
-                      <Trash2 className="size-3.5 mr-1" /> Excluir
-                    </Button>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                  {tx.category}
+                  {tx.subcategory ? ` · ${tx.subcategory}` : ""}
+                </p>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span className="tabular-nums">{formatDate(tx.date)}</span>
+                    <span className="size-1 rounded-full bg-border" />
+                    <span>{frequencyLabel(tx.frequency)}</span>
                   </div>
+                  <StatusBadge status={tx.status} onClick={() => toggleStatus(tx.id)} />
                 </div>
               </div>
-            ))}
+            </div>
+            <div className="mt-3 flex items-center gap-2 border-t border-border/60 pt-3">
+              <Button variant="secondary" size="sm" className="flex-1" onClick={() => openEdit(tx)}>
+                <Pencil /> Editar
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-1 text-danger hover:bg-danger-soft hover:text-danger"
+                onClick={() => removeTransaction(tx.id)}
+              >
+                <Trash2 /> Excluir
+              </Button>
+            </div>
+          </Card>
+        ))}
 
-            {rows.length === 0 && (
-              <div className="py-12 text-center text-sm text-muted-foreground bg-muted/20 rounded-2xl border border-dashed p-6">
-                Nenhum lançamento encontrado com os filtros atuais.
-              </div>
-            )}
+        {rows.length === 0 && (
+          <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+            Nenhum lançamento encontrado com os filtros atuais.
           </div>
+        )}
+      </div>
 
-          {/* Desktop Table View */}
-          <div className="hidden md:block -mx-6 -mb-6 overflow-x-auto border-t">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-6">Data</TableHead>
-                  <TableHead>Descrição</TableHead>
-                  <TableHead>Categoria</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Frequência</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="pr-6 text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((tx) => (
-                  <TableRow key={tx.id}>
-                    <TableCell className="pl-6 text-xs text-muted-foreground tabular-nums">
-                      {formatDate(tx.date)}
-                    </TableCell>
-                    <TableCell className="max-w-56 truncate text-sm font-medium">
-                      {tx.description}
-                    </TableCell>
-                    <TableCell className="text-xs">
-                      <span className="font-medium">{tx.category}</span>
-                      <span className="text-muted-foreground"> / {tx.subcategory}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`text-xs font-semibold ${tx.type === "receita" ? "text-success" : "text-danger"}`}
-                      >
-                        {tx.type === "receita" ? "Receita" : "Despesa"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {frequencyLabel(tx.frequency)}
-                    </TableCell>
-                    <TableCell
-                      className={`text-right text-sm font-semibold tabular-nums ${
-                        tx.type === "receita" ? "text-success" : "text-foreground"
-                      }`}
-                    >
-                      {tx.type === "receita" ? "+" : "−"} {formatBRL(tx.amount)}
-                    </TableCell>
-                    <TableCell>
-                      <button
-                        type="button"
-                        onClick={() => toggleStatus(tx.id)}
-                        title="Alternar status"
-                      >
-                        <Badge
-                          variant="outline"
-                          className={`cursor-pointer border-transparent ${
-                            tx.status === "pago"
-                              ? "bg-success-soft text-success"
-                              : "bg-warning-soft text-warning-foreground"
-                          }`}
+      {/* Desktop: tabela */}
+      <Card className="hidden overflow-hidden md:block">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-6">Data</TableHead>
+                <TableHead>Descrição</TableHead>
+                <TableHead className="hidden lg:table-cell">Categoria</TableHead>
+                <TableHead className="hidden xl:table-cell">Frequência</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="pr-6 text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((tx) => (
+                <TableRow key={tx.id}>
+                  <TableCell className="pl-6 text-xs tabular-nums text-muted-foreground">
+                    {formatDate(tx.date)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <TypeIcon type={tx.type} />
+                      <div className="min-w-0">
+                        <p className="max-w-56 truncate text-sm font-medium">{tx.description}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {tx.type === "receita" ? "Receita" : "Despesa"}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden text-xs lg:table-cell">
+                    <span className="font-medium">{tx.category}</span>
+                    {tx.subcategory && (
+                      <span className="text-muted-foreground"> · {tx.subcategory}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">
+                    {frequencyLabel(tx.frequency)}
+                  </TableCell>
+                  <TableCell
+                    className={cn(
+                      "whitespace-nowrap text-right text-sm font-semibold tabular-nums",
+                      tx.type === "receita" ? "text-success" : "text-foreground",
+                    )}
+                  >
+                    {tx.type === "receita" ? "+" : "−"} {formatBRL(tx.amount)}
+                  </TableCell>
+                  <TableCell>
+                    <StatusBadge status={tx.status} onClick={() => toggleStatus(tx.id)} />
+                  </TableCell>
+                  <TableCell className="pr-6 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon-sm" aria-label="Ações">
+                          <MoreHorizontal />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openEdit(tx)}>
+                          <Pencil /> Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-danger focus:bg-danger-soft focus:text-danger"
+                          onClick={() => removeTransaction(tx.id)}
                         >
-                          {tx.status === "pago" ? "Pago" : "Pendente"}
-                        </Badge>
-                      </button>
-                    </TableCell>
-                    <TableCell className="pr-6 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-8">
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setEditing(tx);
-                              setOpen(true);
-                            }}
-                          >
-                            <Pencil /> Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => removeTransaction(tx.id)}
-                          >
-                            <Trash2 /> Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {rows.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="py-12 text-center text-sm text-muted-foreground"
-                    >
-                      Nenhum lançamento encontrado com os filtros atuais.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
+                          <Trash2 /> Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {rows.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={7}
+                    className="py-14 text-center text-sm text-muted-foreground"
+                  >
+                    Nenhum lançamento encontrado com os filtros atuais.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
 
       <TransactionDialog open={open} onOpenChange={setOpen} editing={editing} />

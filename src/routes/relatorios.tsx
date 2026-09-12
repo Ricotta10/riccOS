@@ -5,7 +5,6 @@ import {
   ArrowUpRight,
   Calendar,
   ChevronDown,
-  ChevronUp,
   Layers,
   PieChart as PieIcon,
   TrendingDown,
@@ -24,6 +23,7 @@ import {
 } from "recharts";
 
 import { PageHeader } from "@/components/riccos/app-shell";
+import { StatCard } from "@/components/riccos/stat-card";
 import { useRiccos } from "@/components/riccos/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +37,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatBRL } from "@/lib/finance-data";
+import { chartColors, chartTooltipStyle, formatBRL } from "@/lib/finance-data";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/relatorios")({
   head: () => ({
@@ -59,9 +60,9 @@ export const Route = createFileRoute("/relatorios")({
 });
 
 const ranges = {
-  "3m": { label: "Últimos 3 meses", months: 3 },
-  "6m": { label: "Últimos 6 meses", months: 6 },
-  ano: { label: "Ano Atual", months: 12 },
+  "3m": { label: "Últimos 3 meses", short: "3 meses", months: 3 },
+  "6m": { label: "Últimos 6 meses", short: "6 meses", months: 6 },
+  ano: { label: "Ano atual", short: "Ano", months: 12 },
 };
 
 const monthNamesShort = [
@@ -79,18 +80,12 @@ const monthNamesShort = [
   "Dez",
 ];
 
-const CATEGORY_COLORS = [
-  "#6366F1",
-  "#EC4899",
-  "#10B981",
-  "#F59E0B",
-  "#8B5CF6",
-  "#3B82F6",
-  "#EF4444",
-  "#14B8A6",
-  "#F97316",
-  "#06B6D4",
-];
+/** Eixo Y compacto: 500 → "500", 1500 → "1,5k", 3000 → "3k". */
+function formatAxisValue(v: number) {
+  if (Math.abs(v) < 1000) return String(v);
+  const k = v / 1000;
+  return `${Number.isInteger(k) ? k : k.toFixed(1).replace(".", ",")}k`;
+}
 
 function formatMonthYearLabel(ymStr: string) {
   const [y, m] = ymStr.split("-").map(Number);
@@ -105,7 +100,10 @@ function ReportsPage() {
 
   // Agrupamento de todas as transações por mês (YYYY-MM)
   const monthlyAggregated = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; receitas: number; despesas: number }>();
+    const map = new Map<
+      string,
+      { key: string; label: string; receitas: number; despesas: number }
+    >();
 
     transactions.forEach((tx) => {
       if (!tx.date) return;
@@ -178,7 +176,7 @@ function ReportsPage() {
     const totalSpent = Array.from(catMap.values()).reduce((a, b) => a + b.total, 0);
 
     const list = Array.from(catMap.entries())
-      .map(([name, obj], index) => {
+      .map(([name, obj]) => {
         const percentage = totalSpent > 0 ? (obj.total / totalSpent) * 100 : 0;
         const subcategories = Array.from(obj.subMap.entries())
           .map(([subName, subAmount]) => ({
@@ -188,15 +186,10 @@ function ReportsPage() {
           }))
           .sort((a, b) => b.amount - a.amount);
 
-        return {
-          name,
-          amount: obj.total,
-          percentage,
-          subcategories,
-          color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
-        };
+        return { name, amount: obj.total, percentage, subcategories };
       })
-      .sort((a, b) => b.amount - a.amount);
+      .sort((a, b) => b.amount - a.amount)
+      .map((item, index) => ({ ...item, color: chartColors[index % chartColors.length] }));
 
     return { list, totalSpent };
   }, [transactions, historyData]);
@@ -250,141 +243,124 @@ function ReportsPage() {
       .map(([, val]) => val);
 
     const totalCommitted = sorted.reduce((acc, item) => acc + item.committed, 0);
+    const max = sorted.reduce((acc, item) => Math.max(acc, item.committed), 0);
 
-    return { list: sorted, totalCommitted };
+    return { list: sorted, totalCommitted, max };
   }, [transactions]);
+
+  const totalSubcategories = categoryBreakdown.list.reduce(
+    (acc, c) => acc + c.subcategories.length,
+    0,
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
-        title="Relatórios & Histórico"
+        eyebrow="Financeiro"
+        title="Relatórios"
         description="Análise comparativa de meses anteriores e projeção de compromissos futuros."
         showBalance={false}
         showPeriodFilter={false}
-      />
-
-      <div className="flex items-center justify-between w-full">
-        <Tabs value={range} onValueChange={(v) => setRange(v as keyof typeof ranges)} className="w-full sm:w-auto">
-          <TabsList className="bg-muted/60 p-1 grid grid-cols-3 w-full sm:w-auto h-11 sm:h-10">
+      >
+        <Tabs
+          value={range}
+          onValueChange={(v) => setRange(v as keyof typeof ranges)}
+          className="w-full sm:w-auto"
+        >
+          <TabsList className="grid h-11 w-full grid-cols-3 sm:h-10 sm:w-auto">
             {Object.entries(ranges).map(([key, value]) => (
-              <TabsTrigger key={key} value={key} className="text-xs font-semibold px-2">
-                {key === "3m" ? "3 Meses" : key === "6m" ? "6 Meses" : "Ano"}
+              <TabsTrigger key={key} value={key} className="px-4 text-xs">
+                {value.short}
               </TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
-      </div>
+      </PageHeader>
 
       {/* KPI Cards de Resumo */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card className="shadow-none">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase text-muted-foreground">
-                Receitas do Período
-              </span>
-              <div className="rounded-lg bg-success/10 p-2 text-success">
-                <ArrowUpRight className="size-4" />
-              </div>
-            </div>
-            <p className="mt-3 text-2xl font-bold tabular-nums text-success">
-              {formatBRL(periodMetrics.totalReceitas)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-none">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase text-muted-foreground">
-                Despesas do Período
-              </span>
-              <div className="rounded-lg bg-danger/10 p-2 text-danger">
-                <ArrowDownRight className="size-4" />
-              </div>
-            </div>
-            <p className="mt-3 text-2xl font-bold tabular-nums text-danger">
-              {formatBRL(periodMetrics.totalDespesas)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-none">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase text-muted-foreground">
-                Resultado Líquido
-              </span>
-              <div
-                className={`rounded-lg p-2 ${periodMetrics.resultado >= 0 ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}
-              >
-                <Wallet className="size-4" />
-              </div>
-            </div>
-            <p
-              className={`mt-3 text-2xl font-bold tabular-nums ${periodMetrics.resultado >= 0 ? "text-success" : "text-danger"}`}
-            >
-              {formatBRL(periodMetrics.resultado)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-none">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase text-muted-foreground">
-                Média Mensal Despesas
-              </span>
-              <div className="rounded-lg bg-accent p-2 text-muted-foreground">
-                <Calendar className="size-4" />
-              </div>
-            </div>
-            <p className="mt-3 text-2xl font-bold tabular-nums">
-              {formatBRL(periodMetrics.mediaMensalDespesas)}
-            </p>
-          </CardContent>
-        </Card>
+        <StatCard
+          label="Receitas do período"
+          value={periodMetrics.totalReceitas}
+          tone="success"
+          icon={ArrowUpRight}
+        />
+        <StatCard
+          label="Despesas do período"
+          value={periodMetrics.totalDespesas}
+          tone="danger"
+          icon={ArrowDownRight}
+        />
+        <StatCard
+          label="Resultado líquido"
+          value={periodMetrics.resultado}
+          tone={periodMetrics.resultado >= 0 ? "success" : "danger"}
+          icon={Wallet}
+        />
+        <StatCard
+          label="Média mensal de despesas"
+          value={periodMetrics.mediaMensalDespesas}
+          tone="neutral"
+          icon={Calendar}
+        />
       </div>
 
       {/* Gráfico principal: Receitas vs Despesas */}
-      <Card className="shadow-none">
+      <Card>
         <CardHeader>
-          <CardTitle>Receitas vs. Despesas</CardTitle>
-          <CardDescription>Evolução mês a mês no período selecionado</CardDescription>
+          <CardTitle className="text-base">Receitas vs. despesas</CardTitle>
+          <CardDescription className="text-xs">
+            Evolução mês a mês · {ranges[range].label.toLowerCase()}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-80 w-full">
+          <div className="h-72 w-full sm:h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={historyData} barGap={6}>
-                <CartesianGrid vertical={false} stroke="var(--border)" />
-                <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
+              <BarChart data={historyData} barGap={6} barCategoryGap="28%">
+                <CartesianGrid
+                  vertical={false}
+                  stroke="var(--color-border)"
+                  strokeDasharray="4 4"
+                />
+                <XAxis
+                  dataKey="label"
+                  tickLine={false}
+                  axisLine={false}
+                  fontSize={11}
+                  tick={{ fill: "var(--color-muted-foreground)" }}
+                />
                 <YAxis
                   tickLine={false}
                   axisLine={false}
-                  fontSize={12}
-                  tickFormatter={(v: number) => `${Math.round(v / 1000)}k`}
+                  fontSize={11}
+                  width={36}
+                  tick={{ fill: "var(--color-muted-foreground)" }}
+                  tickFormatter={formatAxisValue}
                 />
                 <Tooltip
                   formatter={(v: number) => formatBRL(v)}
-                  contentStyle={{
-                    borderRadius: 12,
-                    border: "1px solid var(--border)",
-                    background: "var(--popover)",
-                    fontSize: 12,
-                  }}
+                  cursor={{ fill: "var(--color-accent)", opacity: 0.5 }}
+                  contentStyle={chartTooltipStyle}
+                  itemStyle={{ color: "var(--color-foreground)" }}
                 />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                <Legend
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+                />
                 <Bar
                   dataKey="receitas"
                   name="Receitas"
-                  fill="var(--chart-1)"
-                  radius={[6, 6, 0, 0]}
+                  fill="var(--color-success)"
+                  radius={[8, 8, 4, 4]}
+                  maxBarSize={36}
                 />
                 <Bar
                   dataKey="despesas"
                   name="Despesas"
-                  fill="var(--chart-2)"
-                  radius={[6, 6, 0, 0]}
+                  fill="var(--color-chart-4)"
+                  radius={[8, 8, 4, 4]}
+                  maxBarSize={36}
                 />
               </BarChart>
             </ResponsiveContainer>
@@ -394,29 +370,31 @@ function ReportsPage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         {/* Tabela de Histórico Mensal Consolidado */}
-        <Card className="shadow-none lg:col-span-3">
+        <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Histórico Consolidado Mensal</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-base">Histórico consolidado</CardTitle>
+            <CardDescription className="text-xs">
               Resultado líquido e variação em relação ao mês anterior
             </CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 sm:p-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Mês/Ano</TableHead>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="pl-5 sm:pl-6">Mês</TableHead>
                     <TableHead className="text-right">Receitas</TableHead>
                     <TableHead className="text-right">Despesas</TableHead>
                     <TableHead className="text-right">Resultado</TableHead>
-                    <TableHead className="pr-6 text-right">Variação</TableHead>
+                    <TableHead className="pr-5 text-right sm:pr-6">Variação</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {historyData.map((row) => (
                     <TableRow key={row.key}>
-                      <TableCell className="pl-6 text-sm font-medium">{row.label}</TableCell>
+                      <TableCell className="pl-5 text-sm font-semibold sm:pl-6">
+                        {row.label}
+                      </TableCell>
                       <TableCell className="text-right text-sm font-medium tabular-nums text-success">
                         {formatBRL(row.receitas)}
                       </TableCell>
@@ -424,25 +402,29 @@ function ReportsPage() {
                         {formatBRL(row.despesas)}
                       </TableCell>
                       <TableCell
-                        className={`text-right text-sm font-bold tabular-nums ${
-                          row.net >= 0 ? "text-success" : "text-danger"
-                        }`}
+                        className={cn(
+                          "text-right text-sm font-semibold tabular-nums",
+                          row.net >= 0 ? "text-success" : "text-danger",
+                        )}
                       >
                         {formatBRL(row.net)}
                       </TableCell>
-                      <TableCell className="pr-6 text-right">
+                      <TableCell className="pr-5 text-right sm:pr-6">
                         {row.variation === null ? (
                           <span className="text-xs text-muted-foreground">—</span>
                         ) : (
                           <span
-                            className={`inline-flex items-center gap-1 text-xs font-semibold tabular-nums ${
-                              row.variation >= 0 ? "text-success" : "text-danger"
-                            }`}
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
+                              row.variation >= 0
+                                ? "bg-success-soft text-success"
+                                : "bg-danger-soft text-danger",
+                            )}
                           >
                             {row.variation >= 0 ? (
-                              <TrendingUp className="size-3.5" />
+                              <TrendingUp className="size-3" />
                             ) : (
-                              <TrendingDown className="size-3.5" />
+                              <TrendingDown className="size-3" />
                             )}
                             {row.variation.toFixed(1)}%
                           </span>
@@ -452,7 +434,10 @@ function ReportsPage() {
                   ))}
                   {historyData.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={5} className="h-24 text-center text-sm text-muted-foreground">
+                      <TableCell
+                        colSpan={5}
+                        className="h-24 text-center text-sm text-muted-foreground"
+                      >
                         Nenhum dado encontrado para o período selecionado.
                       </TableCell>
                     </TableRow>
@@ -464,35 +449,48 @@ function ReportsPage() {
         </Card>
 
         {/* Projeção Futura de Compromissos */}
-        <Card className="shadow-none lg:col-span-2">
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Projeção Futura</CardTitle>
-            <CardDescription>Compromissos recorrentes e parcelas vincendas</CardDescription>
+            <CardTitle className="text-base">Projeção futura</CardTitle>
+            <CardDescription className="text-xs">
+              Compromissos recorrentes e parcelas vincendas
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="rounded-xl bg-secondary p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="relative overflow-hidden rounded-2xl bg-primary p-4 text-primary-foreground">
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-8 -top-8 size-32 rounded-full bg-brand-snow/10 blur-2xl"
+              />
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">
                 Total comprometido
               </p>
-              <p className="mt-1 text-2xl font-bold tabular-nums">
+              <p className="mt-1 text-2xl font-semibold tabular-nums">
                 {formatBRL(futureProjection.totalCommitted)}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs opacity-80">
                 Próximos {futureProjection.list.length} meses projetados
               </p>
             </div>
-            <div className="space-y-1">
-              {futureProjection.list.map((item) => (
-                <div
-                  key={item.label}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-2 py-2.5 hover:bg-accent"
-                >
-                  <span className="truncate text-sm font-medium">{item.label}</span>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums">
-                    {formatBRL(item.committed)}
-                  </span>
-                </div>
-              ))}
+            <div className="space-y-1.5">
+              {futureProjection.list.map((item) => {
+                const pct =
+                  futureProjection.max > 0 ? (item.committed / futureProjection.max) * 100 : 0;
+                return (
+                  <div
+                    key={item.label}
+                    className="rounded-xl px-3 py-2.5 transition-colors hover:bg-accent/60"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium">{item.label}</span>
+                      <span className="text-sm font-semibold tabular-nums">
+                        {formatBRL(item.committed)}
+                      </span>
+                    </div>
+                    <Progress value={pct} className="mt-2 h-1" />
+                  </div>
+                );
+              })}
               {futureProjection.list.length === 0 && (
                 <p className="py-4 text-center text-xs text-muted-foreground">
                   Sem projeções de gastos para os próximos meses.
@@ -503,16 +501,18 @@ function ReportsPage() {
         </Card>
       </div>
 
-      {/* NOVA SESSÃO: Distribuição de Gastos por Categoria e Subcategoria */}
-      <Card className="shadow-none">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {/* Distribuição de Gastos por Categoria e Subcategoria */}
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="size-5 text-primary" />
-              <span>Distribuição por Categoria e Subcategoria</span>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                <Layers className="size-4" />
+              </span>
+              Categorias & subcategorias
             </CardTitle>
-            <CardDescription className="mt-1">
-              Clique em uma categoria para destrinchar suas subcategorias no período de {ranges[range].label.toLowerCase()}
+            <CardDescription className="mt-1.5 text-xs">
+              Toque em uma categoria para detalhar · {ranges[range].label.toLowerCase()}
             </CardDescription>
           </div>
           {categoryBreakdown.list.length > 0 && (
@@ -520,96 +520,87 @@ function ReportsPage() {
               variant="outline"
               size="sm"
               onClick={toggleExpandAll}
-              className="w-full sm:w-auto text-xs font-semibold"
+              className="w-full sm:w-auto"
             >
-              {allExpanded ? "Recolher Todas" : "Expandir Subcategorias"}
+              {allExpanded ? "Recolher todas" : "Expandir todas"}
             </Button>
           )}
         </CardHeader>
         <CardContent>
           {categoryBreakdown.list.length > 0 ? (
             <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
-              <div className="space-y-4 lg:col-span-2">
+              <div className="space-y-2.5 lg:col-span-2">
                 {categoryBreakdown.list.map((item) => {
                   const isExpanded = !!expandedCategories[item.name];
 
                   return (
                     <div
                       key={item.name}
-                      className="rounded-xl border bg-card p-3.5 space-y-2.5 transition-all"
+                      className="rounded-2xl border bg-background/40 p-3.5 transition-colors hover:border-ring/40"
                     >
-                      {/* Cabecalho da Categoria */}
                       <button
                         type="button"
                         onClick={() => toggleCategory(item.name)}
-                        className="w-full flex items-center justify-between text-left group"
+                        aria-expanded={isExpanded}
+                        className="group flex w-full items-center justify-between gap-3 text-left"
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex min-w-0 items-center gap-2.5">
                           <span
-                            className="size-3 rounded-full shrink-0"
-                            style={{ backgroundColor: item.color }}
+                            className="size-2.5 shrink-0 rounded-full shadow-[0_0_8px_currentColor]"
+                            style={{ backgroundColor: item.color, color: item.color }}
                           />
-                          <span className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
-                            {item.name}
-                          </span>
-                          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-secondary text-muted-foreground shrink-0">
-                            {item.subcategories.length} {item.subcategories.length === 1 ? "subcategoria" : "subcategorias"}
+                          <span className="truncate text-sm font-semibold">{item.name}</span>
+                          <span className="hidden shrink-0 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground sm:inline">
+                            {item.subcategories.length}{" "}
+                            {item.subcategories.length === 1 ? "subcategoria" : "subcategorias"}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 shrink-0">
+                        <div className="flex shrink-0 items-center gap-3">
                           <div className="text-right">
-                            <span className="text-xs text-muted-foreground mr-2 font-medium">
+                            <span className="mr-2 text-xs tabular-nums text-muted-foreground">
                               {item.percentage.toFixed(1)}%
                             </span>
-                            <span className="font-bold text-sm tabular-nums">
+                            <span className="text-sm font-semibold tabular-nums">
                               {formatBRL(item.amount)}
                             </span>
                           </div>
-                          <div className="p-1 rounded-lg hover:bg-accent text-muted-foreground">
-                            {isExpanded ? (
-                              <ChevronUp className="size-4" />
-                            ) : (
-                              <ChevronDown className="size-4" />
+                          <ChevronDown
+                            className={cn(
+                              "size-4 text-muted-foreground transition-transform duration-300",
+                              isExpanded && "rotate-180",
                             )}
-                          </div>
+                          />
                         </div>
                       </button>
 
-                      {/* Barra de Progresso da Categoria */}
-                      <Progress value={item.percentage} className="h-2" />
+                      <Progress
+                        value={item.percentage}
+                        className="mt-3 h-1.5"
+                        style={{ "--progress-background": item.color } as React.CSSProperties}
+                      />
 
-                      {/* Subcategorias Detalhadas (Expandível) */}
                       {isExpanded && (
-                        <div className="mt-3 pt-3 border-t space-y-2">
-                          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                            Detalhamento de {item.name}
-                          </p>
-                          <div className="space-y-2">
-                            {item.subcategories.map((sub) => (
-                              <div
-                                key={sub.name}
-                                className="rounded-lg bg-secondary/50 p-2.5 space-y-1.5"
-                              >
-                                <div className="flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className="size-1.5 rounded-full bg-muted-foreground/60 shrink-0" />
-                                    <span className="font-medium text-foreground truncate">
-                                      {sub.name}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2.5 tabular-nums shrink-0">
-                                    <span className="text-[11px] font-semibold text-muted-foreground">
-                                      {sub.percentageOfCategory.toFixed(1)}% da categoria
-                                    </span>
-                                    <span className="font-bold text-xs text-foreground">
-                                      {formatBRL(sub.amount)}
-                                    </span>
-                                  </div>
+                        <div className="mt-3 space-y-2 border-t border-border/60 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                          {item.subcategories.map((sub) => (
+                            <div key={sub.name} className="rounded-xl bg-secondary/60 p-3">
+                              <div className="flex items-center justify-between gap-2 text-xs">
+                                <span className="truncate font-medium">{sub.name}</span>
+                                <div className="flex shrink-0 items-center gap-2 tabular-nums">
+                                  <span className="text-[11px] text-muted-foreground">
+                                    {sub.percentageOfCategory.toFixed(1)}%
+                                  </span>
+                                  <span className="font-semibold">{formatBRL(sub.amount)}</span>
                                 </div>
-                                <Progress value={sub.percentageOfCategory} className="h-1.5 bg-background" />
                               </div>
-                            ))}
-                          </div>
+                              <Progress
+                                value={sub.percentageOfCategory}
+                                className="mt-2 h-1 bg-background"
+                                style={
+                                  { "--progress-background": item.color } as React.CSSProperties
+                                }
+                              />
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -617,23 +608,29 @@ function ReportsPage() {
                 })}
               </div>
 
-              {/* Card Resumo Lateral */}
-              <div className="sticky top-6 flex flex-col items-center justify-center rounded-xl border bg-secondary/40 p-6 text-center">
-                <PieIcon className="mb-2 size-8 text-primary" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Total de Despesas no Período
+              {/* Resumo lateral */}
+              <div className="relative overflow-hidden rounded-2xl border bg-secondary/40 p-6 text-center lg:sticky lg:top-6">
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute -left-10 -top-10 size-40 rounded-full bg-primary/15 blur-3xl"
+                />
+                <span className="relative mx-auto grid size-12 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-glow">
+                  <PieIcon className="size-5" />
                 </span>
-                <span className="mt-1 text-2xl font-bold tabular-nums text-danger">
+                <p className="relative mt-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Total de despesas no período
+                </p>
+                <p className="relative mt-1 text-2xl font-semibold tabular-nums">
                   {formatBRL(categoryBreakdown.totalSpent)}
-                </span>
-                <span className="mt-2 text-xs text-muted-foreground">
-                  Distribuídas em {categoryBreakdown.list.length} categorias e{" "}
-                  {categoryBreakdown.list.reduce((acc, c) => acc + c.subcategories.length, 0)} subcategorias
-                </span>
+                </p>
+                <p className="relative mt-2 text-xs text-muted-foreground">
+                  Distribuídas em {categoryBreakdown.list.length} categorias e {totalSubcategories}{" "}
+                  subcategorias
+                </p>
               </div>
             </div>
           ) : (
-            <p className="py-6 text-center text-sm text-muted-foreground">
+            <p className="rounded-2xl border border-dashed py-10 text-center text-sm text-muted-foreground">
               Nenhuma despesa registrada no período selecionado.
             </p>
           )}
