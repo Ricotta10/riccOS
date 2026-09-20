@@ -9,11 +9,20 @@ const ASSETS_TO_CACHE = [
   '/logo-mask.png'
 ];
 
-// Install event - caching essential shell assets
+// Install event - caching essential shell assets.
+// Usa cache.add() por item (em vez de addAll) para que a falha de UM arquivo
+// não derrube a instalação inteira do service worker (o que travaria
+// navigator.serviceWorker.ready para sempre em quem depende dele, ex.: push).
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
+      return Promise.all(
+        ASSETS_TO_CACHE.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn('[SW] Falha ao cachear', url, err);
+          })
+        )
+      );
     }).then(() => self.skipWaiting())
   );
 });
