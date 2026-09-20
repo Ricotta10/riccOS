@@ -12,6 +12,7 @@ import {
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import { PageHeader } from "@/components/riccos/app-shell";
+import { InsightsCard } from "@/components/riccos/insights-card";
 import { ScoreCard } from "@/components/riccos/season-widgets";
 import { StatCard } from "@/components/riccos/stat-card";
 import { useRiccos } from "@/components/riccos/store";
@@ -182,6 +183,8 @@ function Overview() {
           hint="Despesas já liquidadas"
         />
       </div>
+
+      <InsightsCard />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
         <ScoreCard className="lg:col-span-5" />
