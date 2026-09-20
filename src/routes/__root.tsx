@@ -20,6 +20,7 @@ import { RiccosProvider } from "../components/riccos/store";
 import { GamificationProvider } from "../components/riccos/gamification";
 import { ThemeProvider, THEME_BOOT_SCRIPT } from "../components/riccos/theme";
 import { Button } from "../components/ui/button";
+import { Toaster } from "../components/ui/sonner";
 
 function FullscreenLoader() {
   return (
@@ -237,6 +238,7 @@ function RootComponent() {
           <RiccosProvider>
             <GamificationProvider>
               <AuthenticatedContent />
+              <Toaster richColors closeButton />
             </GamificationProvider>
           </RiccosProvider>
         </AuthProvider>

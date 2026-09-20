@@ -3,6 +3,8 @@ import {
   ArrowLeftRight,
   AudioLines,
   BarChart3,
+  Bell,
+  BellOff,
   CalendarCog,
   ChevronLeft,
   ChevronRight,
@@ -11,9 +13,11 @@ import {
   Target,
   Trophy,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import { useAuth } from "@/lib/auth";
+import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -24,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Sidebar,
   SidebarContent,
@@ -218,11 +223,42 @@ export function AppSidebar() {
 
 export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) {
   const { month, year, nextMonth, prevMonth, monthTransactions } = useRiccos();
-  const { profile, updateDiaVencimento } = useAuth();
+  const { profile, user, updateDiaVencimento } = useAuth();
   const { balanco } = summarize(monthTransactions);
   const positive = balanco >= 0;
 
   const currentCutoff = profile?.dia_vencimento ?? 3;
+
+  const [pushState, setPushState] = useState<"subscribed" | "unsubscribed" | "unsupported">(
+    "unsupported",
+  );
+  const [pushLoading, setPushLoading] = useState(false);
+
+  useEffect(() => {
+    getPushSubscriptionState().then(setPushState);
+  }, []);
+
+  const handlePushToggle = async (checked: boolean) => {
+    const userId = profile?.user_id ?? user?.id;
+    if (!userId) return;
+
+    setPushLoading(true);
+    try {
+      if (checked) {
+        await subscribeToPush(userId);
+        setPushState("subscribed");
+        toast.success("Notificações push ativadas.");
+      } else {
+        await unsubscribeFromPush();
+        setPushState("unsubscribed");
+        toast.success("Notificações push desativadas.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Não foi possível atualizar as notificações.");
+    } finally {
+      setPushLoading(false);
+    }
+  };
 
   return (
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -286,6 +322,50 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-11 shrink-0 sm:size-10"
+            title="Notificações push"
+            aria-label="Notificações push"
+          >
+            {pushState === "subscribed" ? (
+              <Bell className="text-primary" />
+            ) : (
+              <BellOff className="text-muted-foreground" />
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64" align="end">
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                Notificações push
+              </h4>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Receba um aviso no seu iPhone quando o agente de IA gerar as metas do próximo mês.
+              </p>
+            </div>
+            {pushState === "unsupported" ? (
+              <p className="text-xs text-muted-foreground">
+                Instale o RICC OS na tela de início para poder ativar as notificações.
+              </p>
+            ) : (
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Ativar notificações</span>
+                <Switch
+                  checked={pushState === "subscribed"}
+                  disabled={pushLoading}
+                  onCheckedChange={handlePushToggle}
+                />
+              </div>
+            )}
           </div>
         </PopoverContent>
       </Popover>

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'riccos-pwa-v2';
+const CACHE_NAME = 'riccos-pwa-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/favicon.ico',
@@ -63,6 +63,39 @@ self.addEventListener('fetch', (event) => {
         });
 
       return cachedResponse || fetchPromise;
+    })
+  );
+});
+
+// Push event - exibe a notificação enviada pelo agente de IA de metas (via n8n)
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { title: 'RICC OS', body: event.data ? event.data.text() : '' };
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'RICC OS', {
+      body: data.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: data.url || '/' },
+    })
+  );
+});
+
+// Notification click - foca a aba já aberta ou abre uma nova na URL indicada
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientsArr) => {
+      const existing = clientsArr.find((c) => new URL(c.url).pathname === targetUrl);
+      if (existing) return existing.focus();
+      return self.clients.openWindow(targetUrl);
     })
   );
 });

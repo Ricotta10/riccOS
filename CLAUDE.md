@@ -43,6 +43,7 @@ Se houver qualquer dúvida se um workflow pertence ao RICC OS → **não mexer, 
 | ID                  | Nome                                          | Status |
 |---------------------|-----------------------------------------------|--------|
 | `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Financeiro - Salvar Transações`  | 🟢 Publicado |
+| `Qg4qY07wPI9HC8k6`  | `🟡Ricc OS | Financeiro - Gerar Metas com IA` | 🟡 Rascunho (aguardando teste manual + secrets VAPID antes de publicar) |
 
 > Atualize esta tabela sempre que criar ou remover um workflow do RICC OS.
 
