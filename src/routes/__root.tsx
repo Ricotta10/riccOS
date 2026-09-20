@@ -218,16 +218,17 @@ function RootComponent() {
 
   useEffect(() => {
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker
-          .register("/sw.js")
-          .then((reg) => {
-            console.log("ServiceWorker registrado com sucesso:", reg.scope);
-          })
-          .catch((err) => {
-            console.error("Erro ao registrar ServiceWorker:", err);
-          });
-      });
+      // Registra direto no mount, sem esperar o evento "load" da window: em SPAs
+      // esse evento quase sempre já disparou antes deste efeito rodar, então o
+      // listener nunca era chamado e o service worker nunca era registrado.
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((reg) => {
+          console.log("ServiceWorker registrado com sucesso:", reg.scope);
+        })
+        .catch((err) => {
+          console.error("Erro ao registrar ServiceWorker:", err);
+        });
     }
   }, []);
 
