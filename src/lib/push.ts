@@ -9,17 +9,30 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
 }
 
-export function isPushSupported(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window &&
-    !!VAPID_PUBLIC_KEY
-  );
+export type PushUnsupportedReason =
+  | "no-window"
+  | "no-service-worker"
+  | "no-push-manager"
+  | "no-vapid-key"
+  | null;
+
+export function getPushUnsupportedReason(): PushUnsupportedReason {
+  if (typeof window === "undefined") return "no-window";
+  if (!("serviceWorker" in navigator)) return "no-service-worker";
+  if (!("PushManager" in window)) return "no-push-manager";
+  if (!VAPID_PUBLIC_KEY) return "no-vapid-key";
+  return null;
 }
 
-export async function getPushSubscriptionState(): Promise<"subscribed" | "unsubscribed" | "unsupported"> {
-  if (!isPushSupported()) return "unsupported";
+export function isPushSupported(): boolean {
+  return getPushUnsupportedReason() === null;
+}
+
+export type PushState = "subscribed" | "unsubscribed" | PushUnsupportedReason;
+
+export async function getPushSubscriptionState(): Promise<PushState> {
+  const reason = getPushUnsupportedReason();
+  if (reason) return reason;
   const registration = await navigator.serviceWorker.ready;
   const existing = await registration.pushManager.getSubscription();
   return existing ? "subscribed" : "unsubscribed";

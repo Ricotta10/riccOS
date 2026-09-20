@@ -17,7 +17,12 @@ import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { useAuth } from "@/lib/auth";
-import { getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from "@/lib/push";
+import {
+  getPushSubscriptionState,
+  subscribeToPush,
+  unsubscribeFromPush,
+  type PushState,
+} from "@/lib/push";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -229,9 +234,7 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
 
   const currentCutoff = profile?.dia_vencimento ?? 3;
 
-  const [pushState, setPushState] = useState<"subscribed" | "unsubscribed" | "unsupported">(
-    "unsupported",
-  );
+  const [pushState, setPushState] = useState<PushState>("no-window");
   const [pushLoading, setPushLoading] = useState(false);
 
   useEffect(() => {
@@ -352,9 +355,15 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
                 Receba um aviso no seu iPhone quando o agente de IA gerar as metas do próximo mês.
               </p>
             </div>
-            {pushState === "unsupported" ? (
+            {pushState !== "subscribed" && pushState !== "unsubscribed" ? (
               <p className="text-xs text-muted-foreground">
-                Instale o RICC OS na tela de início para poder ativar as notificações.
+                {pushState === "no-push-manager" &&
+                  "Push não suportado neste navegador. No iPhone, abra o RICC OS pelo ícone da tela de início (não pelo Safari) — é preciso iOS 16.4 ou mais recente."}
+                {pushState === "no-service-worker" &&
+                  "Este navegador não suporta notificações push."}
+                {pushState === "no-vapid-key" &&
+                  "Configuração pendente no servidor (chave pública ausente). Avise o suporte."}
+                {pushState === "no-window" && "Carregando..."}
               </p>
             ) : (
               <div className="flex items-center justify-between">
