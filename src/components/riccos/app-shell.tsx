@@ -238,7 +238,16 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
   const [pushLoading, setPushLoading] = useState(false);
 
   useEffect(() => {
-    getPushSubscriptionState().then(setPushState);
+    getPushSubscriptionState()
+      .then(setPushState)
+      .catch((err) => {
+        console.error("[push] erro ao checar estado da inscrição:", err);
+        toast.error(
+          err instanceof Error
+            ? `Erro ao checar notificações: ${err.message}`
+            : "Erro ao checar notificações push.",
+        );
+      });
   }, []);
 
   const handlePushToggle = async (checked: boolean) => {
@@ -363,6 +372,8 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
                   "Este navegador não suporta notificações push."}
                 {pushState === "no-vapid-key" &&
                   "Configuração pendente no servidor (chave pública ausente). Avise o suporte."}
+                {pushState === "timeout" &&
+                  "O navegador não respondeu a tempo (o service worker pode estar travado). Feche o app por completo e abra de novo."}
                 {pushState === "no-window" && "Carregando..."}
               </p>
             ) : (

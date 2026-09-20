@@ -28,14 +28,24 @@ export function isPushSupported(): boolean {
   return getPushUnsupportedReason() === null;
 }
 
-export type PushState = "subscribed" | "unsubscribed" | PushUnsupportedReason;
+export type PushState = "subscribed" | "unsubscribed" | "timeout" | PushUnsupportedReason;
+
+function timeout(ms: number): Promise<"timeout"> {
+  return new Promise((resolve) => setTimeout(() => resolve("timeout"), ms));
+}
 
 export async function getPushSubscriptionState(): Promise<PushState> {
   const reason = getPushUnsupportedReason();
   if (reason) return reason;
-  const registration = await navigator.serviceWorker.ready;
-  const existing = await registration.pushManager.getSubscription();
-  return existing ? "subscribed" : "unsubscribed";
+
+  return Promise.race([
+    (async () => {
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      return existing ? ("subscribed" as const) : ("unsubscribed" as const);
+    })(),
+    timeout(8000),
+  ]);
 }
 
 export async function subscribeToPush(userId: string): Promise<void> {
