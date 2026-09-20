@@ -363,7 +363,7 @@ function MissionsPage() {
             aria-hidden
             className="pointer-events-none absolute -left-16 -top-16 size-56 rounded-full bg-primary/15 blur-3xl"
           />
-          <CardContent className="relative flex flex-col items-center gap-5 p-6 text-center sm:flex-row sm:text-left">
+          <CardContent className="relative flex h-full flex-col items-center gap-5 p-6 text-center sm:flex-row sm:text-left">
             <SeasonRing pct={season.pct} faixa={season.faixa} size={164} stroke={12}>
               <div className="flex flex-col items-center">
                 <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
