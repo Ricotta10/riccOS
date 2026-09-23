@@ -26,17 +26,6 @@ export interface DbMissao {
   criado_em?: string;
 }
 
-export interface DbRecompensa {
-  recompensa_id: string;
-  user_id?: string;
-  recompensa_titulo: string;
-  recompensa_descricao: string | null;
-  recompensa_tipo: "recompensa" | "prenda";
-  recompensa_faixa: Faixa | null;
-  recompensa_ativa: boolean;
-  criado_em?: string;
-}
-
 export interface DbTemporada {
   temporada_id: string;
   user_id?: string;
@@ -45,8 +34,6 @@ export interface DbTemporada {
   temporada_pontos: number;
   temporada_pontos_max: number;
   temporada_faixa: Faixa;
-  temporada_recompensa_id?: string | null;
-  temporada_prenda_id?: string | null;
   temporada_detalhes: MissionSnapshot[];
   temporada_fechada_em?: string;
 }
@@ -400,26 +387,6 @@ export function summarizeSeason(missions: Mission[]): SeasonSummary {
   };
 }
 
-/** Sorteio determinístico o suficiente (Math.random) entre itens ativos. */
-export function pickReward(catalog: DbRecompensa[], faixa: Faixa): DbRecompensa | null {
-  if (faixa === "nenhuma") return null;
-  const active = catalog.filter((r) => r.recompensa_tipo === "recompensa" && r.recompensa_ativa);
-  // Recompensas da faixa alcançada; se não houver, desce para faixas inferiores
-  const order: Faixa[] = ["ouro", "prata", "bronze"];
-  const start = order.indexOf(faixa);
-  for (let i = start; i < order.length; i++) {
-    const pool = active.filter((r) => r.recompensa_faixa === order[i]);
-    if (pool.length > 0) return pool[Math.floor(Math.random() * pool.length)] ?? null;
-  }
-  return null;
-}
-
-export function pickPenalty(catalog: DbRecompensa[]): DbRecompensa | null {
-  const pool = catalog.filter((r) => r.recompensa_tipo === "prenda" && r.recompensa_ativa);
-  if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)] ?? null;
-}
-
 export function snapshotMissions(missions: Mission[]): MissionSnapshot[] {
   return missions.map((m) => ({
     id: m.id,
@@ -429,80 +396,3 @@ export function snapshotMissions(missions: Mission[]): MissionSnapshot[] {
     detalhe: m.detalhe,
   }));
 }
-
-/* ---------- Catálogo sugerido ---------- */
-
-export const DEFAULT_CATALOG: Omit<DbRecompensa, "recompensa_id" | "user_id" | "criado_em">[] = [
-  // Recompensas
-  {
-    recompensa_titulo: "Café especial ou sobremesa",
-    recompensa_descricao: "Um mimo pequeno, sem culpa.",
-    recompensa_tipo: "recompensa",
-    recompensa_faixa: "bronze",
-    recompensa_ativa: true,
-  },
-  {
-    recompensa_titulo: "Noite de filme com pipoca",
-    recompensa_descricao: "Streaming + snack favorito.",
-    recompensa_tipo: "recompensa",
-    recompensa_faixa: "bronze",
-    recompensa_ativa: true,
-  },
-  {
-    recompensa_titulo: "Jantar fora",
-    recompensa_descricao: "Um restaurante que você gosta.",
-    recompensa_tipo: "recompensa",
-    recompensa_faixa: "prata",
-    recompensa_ativa: true,
-  },
-  {
-    recompensa_titulo: "Compra desejada até R$ 150",
-    recompensa_descricao: "Aquele item da lista de desejos.",
-    recompensa_tipo: "recompensa",
-    recompensa_faixa: "prata",
-    recompensa_ativa: true,
-  },
-  {
-    recompensa_titulo: "Dia livre de planilhas",
-    recompensa_descricao: "Um dia inteiro sem olhar finanças.",
-    recompensa_tipo: "recompensa",
-    recompensa_faixa: "ouro",
-    recompensa_ativa: true,
-  },
-  {
-    recompensa_titulo: "Experiência premium",
-    recompensa_descricao: "Show, passeio ou compra maior planejada.",
-    recompensa_tipo: "recompensa",
-    recompensa_faixa: "ouro",
-    recompensa_ativa: true,
-  },
-  // Prendas
-  {
-    recompensa_titulo: "1 semana sem delivery",
-    recompensa_descricao: "Só comida feita em casa.",
-    recompensa_tipo: "prenda",
-    recompensa_faixa: null,
-    recompensa_ativa: true,
-  },
-  {
-    recompensa_titulo: "Guardar R$ 200 extra",
-    recompensa_descricao: "Transferir para a reserva antes de qualquer gasto.",
-    recompensa_tipo: "prenda",
-    recompensa_faixa: null,
-    recompensa_ativa: true,
-  },
-  {
-    recompensa_titulo: "Zero compras por impulso por 15 dias",
-    recompensa_descricao: "Tudo fora do planejado espera 15 dias.",
-    recompensa_tipo: "prenda",
-    recompensa_faixa: null,
-    recompensa_ativa: true,
-  },
-  {
-    recompensa_titulo: "Revisar todas as assinaturas",
-    recompensa_descricao: "Cancelar pelo menos uma que não usa.",
-    recompensa_tipo: "prenda",
-    recompensa_faixa: null,
-    recompensa_ativa: true,
-  },
-];

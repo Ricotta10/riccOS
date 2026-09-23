@@ -6,9 +6,7 @@ import {
   Circle,
   Clock,
   Crown,
-  Flag,
   Flame,
-  Gift,
   History,
   Lock,
   Plus,
@@ -54,15 +52,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { monthNames } from "@/lib/finance-data";
 import {
   FAIXA_LABEL,
   FAIXA_THRESHOLDS,
   LEVELS,
-  type DbRecompensa,
   type Faixa,
   type Mission,
 } from "@/lib/gamification";
@@ -75,7 +70,7 @@ export const Route = createFileRoute("/missoes")({
       {
         name: "description",
         content:
-          "Missões mensais, pontuação, faixas Bronze/Prata/Ouro, recompensas e prendas para manter a disciplina financeira.",
+          "Missões mensais, pontuação e faixas Bronze/Prata/Ouro para manter a disciplina financeira.",
       },
       { property: "og:title", content: "Missões — RiccOS" },
     ],
@@ -205,54 +200,6 @@ function MissionRow({
   );
 }
 
-function RewardRow({
-  item,
-  onToggle,
-  onRemove,
-}: {
-  item: DbRecompensa;
-  onToggle: (v: boolean) => void;
-  onRemove: () => void;
-}) {
-  const isPenalty = item.recompensa_tipo === "prenda";
-  return (
-    <div
-      className={cn(
-        "group flex items-center gap-3 rounded-2xl border bg-background/40 p-3.5 transition-colors hover:border-ring/40",
-        !item.recompensa_ativa && "opacity-60",
-      )}
-    >
-      <span
-        className={cn(
-          "grid size-9 shrink-0 place-items-center rounded-xl",
-          isPenalty ? "bg-danger-soft text-danger" : "bg-primary/10 text-primary",
-        )}
-      >
-        {isPenalty ? <Flag className="size-4" /> : <Gift className="size-4" />}
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold">{item.recompensa_titulo}</p>
-          {!isPenalty && item.recompensa_faixa && <FaixaBadge faixa={item.recompensa_faixa} />}
-        </div>
-        {item.recompensa_descricao && (
-          <p className="mt-0.5 text-xs text-muted-foreground">{item.recompensa_descricao}</p>
-        )}
-      </div>
-      <Switch checked={item.recompensa_ativa} onCheckedChange={onToggle} aria-label="Ativa" />
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="text-muted-foreground hover:text-danger"
-        onClick={onRemove}
-        aria-label="Excluir"
-      >
-        <Trash2 />
-      </Button>
-    </div>
-  );
-}
-
 /* ---------- Página ---------- */
 
 function MissionsPage() {
@@ -265,7 +212,6 @@ function MissionsPage() {
     season,
     closedSeason,
     temporadas,
-    catalog,
     level,
     totalXp,
     streak,
@@ -275,31 +221,19 @@ function MissionsPage() {
   } = g;
 
   const [missionOpen, setMissionOpen] = useState(false);
-  const [rewardOpen, setRewardOpen] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [pastOpen, setPastOpen] = useState(false);
   const [pastClosed, setPastClosed] = useState<number | null>(null);
   const [result, setResult] = useState<SeasonCloseResult | null>(null);
-  const [catalogTab, setCatalogTab] = useState<"recompensa" | "prenda">("recompensa");
 
   // Formulários
   const [mTitle, setMTitle] = useState("");
   const [mDesc, setMDesc] = useState("");
   const [mPoints, setMPoints] = useState("50");
-  const [rTitle, setRTitle] = useState("");
-  const [rDesc, setRDesc] = useState("");
-  const [rType, setRType] = useState<"recompensa" | "prenda">("recompensa");
-  const [rFaixa, setRFaixa] = useState<Exclude<Faixa, "nenhuma">>("bronze");
 
   const locked = !!closedSeason;
   const s = faixaStyles[season.faixa];
-
-  const rewards = useMemo(
-    () => catalog.filter((c) => c.recompensa_tipo === "recompensa"),
-    [catalog],
-  );
-  const penalties = useMemo(() => catalog.filter((c) => c.recompensa_tipo === "prenda"), [catalog]);
 
   const history = useMemo(
     () =>
@@ -324,35 +258,18 @@ function MissionsPage() {
     setMissionOpen(false);
   };
 
-  const submitReward = async () => {
-    if (!rTitle.trim()) return;
-    await g.addReward({
-      recompensa_titulo: rTitle.trim(),
-      recompensa_descricao: rDesc.trim() || null,
-      recompensa_tipo: rType,
-      recompensa_faixa: rType === "recompensa" ? rFaixa : null,
-      recompensa_ativa: true,
-    });
-    setRTitle("");
-    setRDesc("");
-    setRewardOpen(false);
-  };
-
   const confirmClose = async () => {
     const r = await g.closeSeason();
     setCloseOpen(false);
     if (r) setResult(r);
   };
 
-  const closedReward = g.rewardById(closedSeason?.temporada_recompensa_id);
-  const closedPenalty = g.rewardById(closedSeason?.temporada_prenda_id);
-
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
         eyebrow="Jogo"
         title="Missões"
-        description="Cumpra missões no mês, some pontos e desbloqueie recompensas — ou encare uma prenda."
+        description="Cumpra missões no mês, some pontos e suba de faixa até o fechamento."
         showBalance={false}
       />
 
@@ -456,7 +373,7 @@ function MissionsPage() {
               Faixas e fechamento
             </CardTitle>
             <CardDescription className="text-xs">
-              A pontuação no fim do mês define a faixa. Abaixo de Bronze, uma prenda é sorteada.
+              A pontuação no fim do mês define a faixa da temporada.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -484,9 +401,7 @@ function MissionsPage() {
                       {need} <span className="text-xs font-medium text-muted-foreground">pts</span>
                     </p>
                     <p className="text-[11px] text-muted-foreground">
-                      {Math.round(FAIXA_THRESHOLDS[f] * 100)}% do total ·{" "}
-                      {rewards.filter((r) => r.recompensa_faixa === f && r.recompensa_ativa).length}{" "}
-                      recompensa(s)
+                      {Math.round(FAIXA_THRESHOLDS[f] * 100)}% do total
                     </p>
                   </div>
                 );
@@ -513,40 +428,6 @@ function MissionsPage() {
                     Reabrir
                   </Button>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {closedReward && (
-                    <div className="flex items-center gap-3 rounded-xl bg-primary/10 p-3">
-                      <Gift className="size-5 shrink-0 text-primary" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
-                          Recompensa
-                        </p>
-                        <p className="truncate text-sm font-semibold">
-                          {closedReward.recompensa_titulo}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {closedPenalty && (
-                    <div className="flex items-center gap-3 rounded-xl bg-danger-soft p-3">
-                      <Flag className="size-5 shrink-0 text-danger" />
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-danger">
-                          Prenda
-                        </p>
-                        <p className="truncate text-sm font-semibold">
-                          {closedPenalty.recompensa_titulo}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {!closedReward && !closedPenalty && (
-                    <p className="text-xs text-muted-foreground sm:col-span-2">
-                      Nenhuma recompensa ou prenda cadastrada para esta faixa no momento do
-                      fechamento.
-                    </p>
-                  )}
-                </div>
               </div>
             ) : (
               <div className="flex flex-col gap-3 rounded-2xl border border-dashed p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -560,7 +441,7 @@ function MissionsPage() {
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {periodOver
-                      ? "A faixa sorteia a recompensa (ou a prenda) e soma XP ao seu nível."
+                      ? "A pontuação vira faixa e soma XP ao seu nível."
                       : periodCurrent
                         ? "Você pode encerrar antes, mas as missões automáticas serão avaliadas como estão hoje."
                         : "Navegue até um mês atual ou passado para fechar."}
@@ -679,79 +560,6 @@ function MissionsPage() {
         </Card>
       </div>
 
-      {/* ---------- Catálogo ---------- */}
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
-                <Gift className="size-4" />
-              </span>
-              Recompensas & prendas
-            </CardTitle>
-            <CardDescription className="mt-1.5 text-xs">
-              Cadastre o que você ganha em cada faixa — e o que paga se ficar abaixo de Bronze.
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            <Tabs value={catalogTab} onValueChange={(v) => setCatalogTab(v as typeof catalogTab)}>
-              <TabsList className="h-9">
-                <TabsTrigger value="recompensa" className="px-3 text-xs">
-                  Recompensas ({rewards.length})
-                </TabsTrigger>
-                <TabsTrigger value="prenda" className="px-3 text-xs">
-                  Prendas ({penalties.length})
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <Button
-              size="sm"
-              onClick={() => {
-                setRType(catalogTab);
-                setRewardOpen(true);
-              }}
-            >
-              <Plus /> Nova
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {catalog.length === 0 ? (
-            <div className="rounded-2xl border border-dashed p-8 text-center">
-              <Gift className="mx-auto size-8 text-primary" />
-              <p className="mt-3 text-sm font-semibold">Seu catálogo está vazio.</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Comece com um conjunto sugerido (6 recompensas + 4 prendas) e edite à vontade.
-              </p>
-              <div className="mt-4 flex flex-wrap justify-center gap-2">
-                <Button onClick={() => g.seedCatalog()}>
-                  <Wand2 /> Usar catálogo sugerido
-                </Button>
-                <Button variant="outline" onClick={() => setRewardOpen(true)}>
-                  <Plus /> Criar do zero
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
-              {(catalogTab === "recompensa" ? rewards : penalties).map((item) => (
-                <RewardRow
-                  key={item.recompensa_id}
-                  item={item}
-                  onToggle={(v) => g.updateReward(item.recompensa_id, { recompensa_ativa: v })}
-                  onRemove={() => g.removeReward(item.recompensa_id)}
-                />
-              ))}
-              {(catalogTab === "recompensa" ? rewards : penalties).length === 0 && (
-                <p className="col-span-full rounded-2xl border border-dashed p-6 text-center text-xs text-muted-foreground">
-                  Nada cadastrado nesta aba ainda.
-                </p>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* ---------- Histórico ---------- */}
       <Card>
         <CardHeader className="flex flex-col gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
@@ -788,8 +596,6 @@ function MissionsPage() {
           ) : (
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
               {history.map((t) => {
-                const rw = g.rewardById(t.temporada_recompensa_id);
-                const pn = g.rewardById(t.temporada_prenda_id);
                 const st = faixaStyles[t.temporada_faixa];
                 return (
                   <div key={t.temporada_id} className="rounded-2xl border bg-background/40 p-4">
@@ -814,16 +620,6 @@ function MissionsPage() {
                       }
                       className="mt-2 h-1.5"
                     />
-                    {(rw || pn) && (
-                      <p className="mt-2.5 flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                        {rw ? (
-                          <Gift className="size-3.5 text-primary" />
-                        ) : (
-                          <Flag className="size-3.5 text-danger" />
-                        )}
-                        {rw?.recompensa_titulo ?? pn?.recompensa_titulo}
-                      </p>
-                    )}
                   </div>
                 );
               })}
@@ -888,83 +684,6 @@ function MissionsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ---------- Dialog: nova recompensa/prenda ---------- */}
-      <Dialog open={rewardOpen} onOpenChange={setRewardOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{rType === "prenda" ? "Nova prenda" : "Nova recompensa"}</DialogTitle>
-            <DialogDescription>
-              {rType === "prenda"
-                ? "Sorteada quando a temporada fecha abaixo de Bronze."
-                : "Sorteada entre as recompensas da faixa alcançada."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
-              {(["recompensa", "prenda"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setRType(t)}
-                  className={cn(
-                    "flex h-10 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all",
-                    rType === t
-                      ? t === "prenda"
-                        ? "bg-danger text-danger-foreground shadow-soft"
-                        : "bg-primary text-primary-foreground shadow-soft"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {t === "prenda" ? <Flag className="size-4" /> : <Gift className="size-4" />}
-                  {t === "prenda" ? "Prenda" : "Recompensa"}
-                </button>
-              ))}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="r-titulo">Título</Label>
-              <Input
-                id="r-titulo"
-                placeholder={rType === "prenda" ? "Ex.: 1 semana sem delivery" : "Ex.: Jantar fora"}
-                value={rTitle}
-                onChange={(e) => setRTitle(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="r-desc">Descrição (opcional)</Label>
-              <Textarea
-                id="r-desc"
-                rows={2}
-                value={rDesc}
-                onChange={(e) => setRDesc(e.target.value)}
-              />
-            </div>
-            {rType === "recompensa" && (
-              <div className="grid gap-2">
-                <Label>Faixa mínima</Label>
-                <Select value={rFaixa} onValueChange={(v) => setRFaixa(v as typeof rFaixa)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="bronze">Bronze</SelectItem>
-                    <SelectItem value="prata">Prata</SelectItem>
-                    <SelectItem value="ouro">Ouro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setRewardOpen(false)}>
-              Cancelar
-            </Button>
-            <Button onClick={submitReward} disabled={!rTitle.trim()}>
-              Salvar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* ---------- Confirmar fechamento ---------- */}
       <AlertDialog open={closeOpen} onOpenChange={setCloseOpen}>
         <AlertDialogContent>
@@ -973,9 +692,6 @@ function MissionsPage() {
             <AlertDialogDescription>
               Você está com <strong>{season.points}</strong> de {season.maxPoints} pontos — faixa{" "}
               <strong>{FAIXA_LABEL[season.faixa]}</strong>.{" "}
-              {season.faixa === "nenhuma"
-                ? "Abaixo de Bronze uma prenda será sorteada."
-                : "Uma recompensa da faixa será sorteada."}{" "}
               {!periodOver &&
                 "O mês ainda não terminou: as missões automáticas serão congeladas como estão agora."}
             </AlertDialogDescription>
@@ -1000,7 +716,7 @@ function MissionsPage() {
                 {g.pastOpenPeriods.map((p) => `${monthNames[p.month1 - 1]}/${p.year}`).join(", ")}
               </strong>
               . As missões automáticas serão avaliadas com os dados de cada mês e a pontuação vira
-              XP. Fechamento retroativo <strong>não sorteia recompensa nem prenda</strong>.
+              XP.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1029,7 +745,7 @@ function MissionsPage() {
             <DialogDescription>
               {pastClosed === 0
                 ? "Ocorreu um erro ao gravar. Verifique o console e tente novamente."
-                : "O histórico e o seu XP foram atualizados. As regras completas (recompensas e prendas) valem a partir das próximas temporadas."}
+                : "O histórico e o seu XP foram atualizados."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1046,9 +762,8 @@ function MissionsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reabrir esta temporada?</AlertDialogTitle>
             <AlertDialogDescription>
-              O resultado registrado (pontos, faixa, recompensa/prenda) será apagado e o XP
-              correspondente deixará de contar para o seu nível. As missões voltam a ser avaliadas
-              em tempo real.
+              O resultado registrado (pontos e faixa) será apagado e o XP correspondente deixará de
+              contar para o seu nível. As missões voltam a ser avaliadas em tempo real.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -1110,50 +825,8 @@ function MissionsPage() {
               </div>
               <DialogHeader className="sr-only">
                 <DialogTitle>Resultado da temporada</DialogTitle>
-                <DialogDescription>Recompensa ou prenda sorteada.</DialogDescription>
+                <DialogDescription>Pontuação e faixa da temporada encerrada.</DialogDescription>
               </DialogHeader>
-              <div className="space-y-3 pt-2">
-                {result.recompensa && (
-                  <div className="flex items-start gap-3 rounded-2xl bg-primary/10 p-4">
-                    <Gift className="mt-0.5 size-5 shrink-0 text-primary" />
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
-                        Sua recompensa
-                      </p>
-                      <p className="text-base font-semibold">
-                        {result.recompensa.recompensa_titulo}
-                      </p>
-                      {result.recompensa.recompensa_descricao && (
-                        <p className="text-xs text-muted-foreground">
-                          {result.recompensa.recompensa_descricao}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {result.prenda && (
-                  <div className="flex items-start gap-3 rounded-2xl bg-danger-soft p-4">
-                    <Flag className="mt-0.5 size-5 shrink-0 text-danger" />
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-danger">
-                        Sua prenda
-                      </p>
-                      <p className="text-base font-semibold">{result.prenda.recompensa_titulo}</p>
-                      {result.prenda.recompensa_descricao && (
-                        <p className="text-xs text-muted-foreground">
-                          {result.prenda.recompensa_descricao}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {!result.recompensa && !result.prenda && (
-                  <p className="rounded-2xl border border-dashed p-4 text-center text-xs text-muted-foreground">
-                    Nenhum item cadastrado para esta faixa. Cadastre recompensas e prendas no
-                    catálogo.
-                  </p>
-                )}
-              </div>
               <DialogFooter>
                 <Button onClick={() => setResult(null)} className="w-full">
                   Continuar

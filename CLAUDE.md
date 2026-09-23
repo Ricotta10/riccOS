@@ -97,6 +97,7 @@ Use a área que melhor descreve o domínio da automação. Áreas já em uso na 
 - Tabelas atuais (schema `public`, todas com RLS habilitado): `usuarios`, `categorias`,
   `subcategorias`, `transacoes`, `metas`, e as do minigame: `missoes`, `recompensas`, `temporadas`
   (estas três com políticas `user_id = auth.uid()`; as antigas usam a política ampla "Liberar Acesso").
+  `recompensas` está **órfã** desde 23/09/2026 — o app não lê nem escreve nela (ver seção 5).
 - `transacoes.transacao_origem` (`manual`|`voz`|`wallet`), `transacao_revisada` (false = fila de revisão
   das compras da Wallet em `wallet-review.tsx`) e `transacao_chave_externa` (dedupe, índice único parcial).
 - Inserts sempre com `user_id: user.id` (auth), seguindo `store.tsx`.
@@ -146,6 +147,9 @@ Definido em `src/styles.css` (tokens) e nos componentes de `src/components/ui` e
   abaixo de `md`. Tabelas desktop devem ocultar colunas secundárias em `md`/`lg`.
   A bottom nav tem **4 itens + núcleo** (Visão Geral, Transações, Metas, Missões); Relatórios
   fica só no menu lateral (`mobileNavItems` em `app-shell.tsx`). Não adicionar um 6º item.
+- **Colapsar a sidebar** (`SidebarBrandHeader` em `app-shell.tsx`): o controle vive no cabeçalho,
+  nunca solto no meio do menu. Expandido = botão fantasma `«` à direita da marca; colapsado = o
+  próprio tile da marca vira `»` no hover/foco. No drawer mobile o botão não aparece.
 
 ## 5. Minigame financeiro ("Missões")
 
@@ -159,12 +163,15 @@ e widgets em `season-widgets.tsx` (`ScoreCard` na Visão Geral, `ScoreBadge` na 
   ≥ 10 lançamentos (30) e uma por meta de categoria definida no mês (40 cada).
 - **Missões manuais**: tabela `missoes`, criadas/marcadas pelo usuário (5–500 pts).
 - **Faixas** por % do total possível: Bronze ≥ 45%, Prata ≥ 65%, Ouro ≥ 85% (`FAIXA_THRESHOLDS`).
-- **Fechamento** (`closeSeason`): grava `temporadas` com snapshot das missões, sorteia uma
-  recompensa ativa da faixa (cai para faixas inferiores se vazia) ou uma prenda se abaixo de Bronze.
+- **Fechamento** (`closeSeason`): grava `temporadas` com snapshot das missões, pontos e faixa.
   Temporada fechada é **somente leitura** (usa o snapshot, não recalcula). `reopenSeason` apaga a linha.
+  `closePastSeasons` fecha em lote os meses passados que ainda têm dados em aberto.
 - **XP/nível** = soma de `temporada_pontos` de todas as temporadas fechadas (`LEVELS`);
   **streak** = temporadas consecutivas mais recentes com faixa ≥ Bronze.
-- Catálogo inicial em `DEFAULT_CATALOG` (só inserido quando o usuário clica em "Usar catálogo sugerido").
+- **Sem recompensas/prendas**: o jogo é só missões, pontos, faixa e XP (removido em 23/09/2026 a
+  pedido do usuário). Não reintroduzir catálogo, sorteio ou punição sem ele pedir. A tabela
+  `recompensas` e as colunas `temporada_recompensa_id`/`temporada_prenda_id` continuam no banco,
+  órfãs e sem uso — só remover mediante confirmação explícita.
 - Ao mudar regras/pontos, manter `computeAutoMissions` pura e atualizar esta seção.
 
 ## 6. Segurança

@@ -12,18 +12,14 @@ import { useAuth } from "@/lib/auth";
 import { getTransactionPeriod, type Transaction } from "@/lib/finance-data";
 import {
   computeAutoMissions,
-  DEFAULT_CATALOG,
   isPeriodCurrent,
   isPeriodOver,
   levelFor,
   mapManualMissions,
-  pickPenalty,
-  pickReward,
   snapshotMissions,
   streakFor,
   summarizeSeason,
   type DbMissao,
-  type DbRecompensa,
   type DbTemporada,
   type Faixa,
   type Mission,
@@ -34,8 +30,6 @@ import { useRiccos } from "./store";
 
 export type SeasonCloseResult = {
   temporada: DbTemporada;
-  recompensa: DbRecompensa | null;
-  prenda: DbRecompensa | null;
 };
 
 type Gamification = {
@@ -50,7 +44,6 @@ type Gamification = {
   /** Temporada já fechada para o período em foco (se houver) */
   closedSeason: DbTemporada | null;
   temporadas: DbTemporada[];
-  catalog: DbRecompensa[];
   totalXp: number;
   level: ReturnType<typeof levelFor>;
   streak: number;
@@ -60,19 +53,12 @@ type Gamification = {
   addMission: (input: { titulo: string; descricao?: string; pontos: number }) => Promise<void>;
   toggleMission: (dbId: string) => Promise<void>;
   removeMission: (dbId: string) => Promise<void>;
-  addReward: (
-    input: Omit<DbRecompensa, "recompensa_id" | "user_id" | "criado_em">,
-  ) => Promise<void>;
-  updateReward: (id: string, patch: Partial<DbRecompensa>) => Promise<void>;
-  removeReward: (id: string) => Promise<void>;
-  seedCatalog: () => Promise<void>;
   closeSeason: () => Promise<SeasonCloseResult | null>;
   reopenSeason: () => Promise<void>;
   /** Períodos já encerrados que têm lançamentos mas ainda não foram fechados */
   pastOpenPeriods: { month1: number; year: number }[];
-  /** Fecha todos os períodos passados com dados, sem sortear recompensa/prenda. Retorna quantos fechou. */
+  /** Fecha todos os períodos passados que têm dados. Retorna quantos fechou. */
   closePastSeasons: () => Promise<number>;
-  rewardById: (id?: string | null) => DbRecompensa | null;
   refetch: () => Promise<void>;
 };
 
@@ -83,7 +69,6 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
   const { month, year, transactions, monthTransactions, dbCategories, dbGoals } = useRiccos();
 
   const [missoes, setMissoes] = useState<DbMissao[]>([]);
-  const [catalog, setCatalog] = useState<DbRecompensa[]>([]);
   const [temporadas, setTemporadas] = useState<DbTemporada[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -93,22 +78,18 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
   const refetch = useCallback(async () => {
     if (!user) {
       setMissoes([]);
-      setCatalog([]);
       setTemporadas([]);
       return;
     }
     setLoading(true);
     try {
-      const [m, r, t] = await Promise.all([
+      const [m, t] = await Promise.all([
         supabase.from("missoes").select("*"),
-        supabase.from("recompensas").select("*").order("criado_em", { ascending: true }),
         supabase.from("temporadas").select("*"),
       ]);
       if (m.error) console.error("Erro ao buscar missões:", m.error);
-      if (r.error) console.error("Erro ao buscar recompensas:", r.error);
       if (t.error) console.error("Erro ao buscar temporadas:", t.error);
       setMissoes((m.data as DbMissao[]) ?? []);
-      setCatalog((r.data as DbRecompensa[]) ?? []);
       setTemporadas((t.data as DbTemporada[]) ?? []);
     } finally {
       setLoading(false);
@@ -191,11 +172,6 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
   const periodCurrent = isPeriodCurrent(month1, year, cutoffDay);
   const canClose = !closedSeason && (periodOver || periodCurrent);
 
-  const rewardById = useCallback(
-    (id?: string | null) => (id ? (catalog.find((r) => r.recompensa_id === id) ?? null) : null),
-    [catalog],
-  );
-
   /* ---------- Missões manuais ---------- */
 
   const addMission = useCallback<Gamification["addMission"]>(
@@ -265,68 +241,12 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
     [refetch],
   );
 
-  /* ---------- Catálogo ---------- */
-
-  const addReward = useCallback<Gamification["addReward"]>(
-    async (input) => {
-      if (!user) return;
-      const { data, error } = await supabase
-        .from("recompensas")
-        .insert({ ...input, user_id: user.id })
-        .select()
-        .single();
-      if (error) {
-        console.error("Erro ao criar recompensa:", error);
-        return;
-      }
-      setCatalog((prev) => [...prev, data as DbRecompensa]);
-    },
-    [user],
-  );
-
-  const updateReward = useCallback(
-    async (id: string, patch: Partial<DbRecompensa>) => {
-      setCatalog((prev) => prev.map((r) => (r.recompensa_id === id ? { ...r, ...patch } : r)));
-      const { error } = await supabase.from("recompensas").update(patch).eq("recompensa_id", id);
-      if (error) {
-        console.error("Erro ao atualizar recompensa:", error);
-        refetch();
-      }
-    },
-    [refetch],
-  );
-
-  const removeReward = useCallback(
-    async (id: string) => {
-      setCatalog((prev) => prev.filter((r) => r.recompensa_id !== id));
-      const { error } = await supabase.from("recompensas").delete().eq("recompensa_id", id);
-      if (error) {
-        console.error("Erro ao remover recompensa:", error);
-        refetch();
-      }
-    },
-    [refetch],
-  );
-
-  const seedCatalog = useCallback(async () => {
-    if (!user) return;
-    const rows = DEFAULT_CATALOG.map((r) => ({ ...r, user_id: user.id }));
-    const { data, error } = await supabase.from("recompensas").insert(rows).select();
-    if (error) {
-      console.error("Erro ao criar catálogo sugerido:", error);
-      return;
-    }
-    setCatalog((prev) => [...prev, ...((data as DbRecompensa[]) ?? [])]);
-  }, [user]);
-
   /* ---------- Temporada ---------- */
 
   const closeSeason = useCallback(async (): Promise<SeasonCloseResult | null> => {
     if (!user || closedSeason) return null;
     const summary = summarizeSeason(missions);
     const faixa: Faixa = summary.faixa;
-    const recompensa = pickReward(catalog, faixa);
-    const prenda = faixa === "nenhuma" ? pickPenalty(catalog) : null;
 
     const { data, error } = await supabase
       .from("temporadas")
@@ -337,8 +257,6 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
         temporada_pontos: summary.points,
         temporada_pontos_max: summary.maxPoints,
         temporada_faixa: faixa,
-        temporada_recompensa_id: recompensa?.recompensa_id ?? null,
-        temporada_prenda_id: prenda?.recompensa_id ?? null,
         temporada_detalhes: snapshotMissions(missions),
       })
       .select()
@@ -349,8 +267,8 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
     }
     const temporada = data as DbTemporada;
     setTemporadas((prev) => [...prev, temporada]);
-    return { temporada, recompensa, prenda };
-  }, [user, closedSeason, missions, catalog, month1, year]);
+    return { temporada };
+  }, [user, closedSeason, missions, month1, year]);
 
   const reopenSeason = useCallback(async () => {
     if (!closedSeason) return;
@@ -415,9 +333,6 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
         temporada_pontos: s.points,
         temporada_pontos_max: s.maxPoints,
         temporada_faixa: s.faixa,
-        // Fechamento retroativo: sem sorteio de recompensa nem prenda
-        temporada_recompensa_id: null,
-        temporada_prenda_id: null,
         temporada_detalhes: snapshotMissions(all),
       };
     });
@@ -442,7 +357,6 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
       season,
       closedSeason,
       temporadas,
-      catalog,
       totalXp,
       level,
       streak,
@@ -452,15 +366,10 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
       addMission,
       toggleMission,
       removeMission,
-      addReward,
-      updateReward,
-      removeReward,
-      seedCatalog,
       closeSeason,
       reopenSeason,
       pastOpenPeriods,
       closePastSeasons,
-      rewardById,
       refetch,
     }),
     [
@@ -473,7 +382,6 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
       season,
       closedSeason,
       temporadas,
-      catalog,
       totalXp,
       level,
       streak,
@@ -483,15 +391,10 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
       addMission,
       toggleMission,
       removeMission,
-      addReward,
-      updateReward,
-      removeReward,
-      seedCatalog,
       closeSeason,
       reopenSeason,
       pastOpenPeriods,
       closePastSeasons,
-      rewardById,
       refetch,
     ],
   );

@@ -8,6 +8,8 @@ import {
   CalendarCog,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   LayoutGrid,
   LogOut,
   Target,
@@ -96,28 +98,66 @@ const menuButtonClass =
   "h-11 rounded-xl px-3 text-sidebar-foreground transition-all hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-primary data-[active=true]:text-sidebar-primary-foreground data-[active=true]:font-semibold group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:!size-10 group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:rounded-xl group-data-[collapsible=icon]:[&>span]:hidden [&>svg]:size-[18px]";
 
 /**
- * Botão redondo minimalista de expandir/colapsar (desktop).
- * Fica logo abaixo do item "Comando de voz", alinhado à coluna de ícones.
+ * Cabeçalho da sidebar (desktop + drawer mobile).
+ *
+ * Expandido: marca à esquerda + botão discreto de recolher à direita.
+ * Colapsado: o próprio tile da marca vira o botão de expandir ao passar o mouse,
+ * mantendo a coluna de 40px sem nenhum elemento solto.
  */
-function SidebarCollapseToggle() {
-  const { state, toggleSidebar } = useSidebar();
-  const collapsed = state === "collapsed";
+function SidebarBrandHeader({ onNavigate }: { onNavigate: () => void }) {
+  const { state, toggleSidebar, isMobile } = useSidebar();
+  const collapsed = state === "collapsed" && !isMobile;
+
   return (
-    <div className="hidden pt-1 md:flex group-data-[collapsible=icon]:justify-center">
-      <button
-        type="button"
-        onClick={toggleSidebar}
-        aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
-        title={collapsed ? "Expandir menu" : "Recolher menu"}
-        className="ml-[7px] grid size-7 place-items-center rounded-full border border-brand-snow/10 bg-brand-black text-brand-snow/60 transition-all hover:scale-110 hover:border-brand-mint/60 hover:bg-brand-mint hover:text-brand-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-data-[collapsible=icon]:ml-0"
-      >
-        {collapsed ? (
-          <ChevronRight className="size-3.5" strokeWidth={2.5} />
-        ) : (
-          <ChevronLeft className="size-3.5" strokeWidth={2.5} />
-        )}
-      </button>
-    </div>
+    <SidebarHeader className="px-3 pb-2 pt-4 group-data-[collapsible=icon]:px-0">
+      {/* --- Estado expandido --- */}
+      <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
+        <Link
+          to="/"
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={onNavigate}
+        >
+          <LogoTile tone="light" className="size-10" />
+          <div className="flex min-w-0 flex-col">
+            <Wordmark className="text-lg text-brand-snow" />
+            <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-sidebar-foreground/60">
+              Gestão pessoal
+            </span>
+          </div>
+        </Link>
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label="Recolher menu"
+          title="Recolher menu"
+          className="hidden size-8 shrink-0 place-items-center rounded-lg text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent hover:text-brand-snow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:grid"
+        >
+          <ChevronsLeft className="size-4" />
+        </button>
+      </div>
+
+      {/* --- Estado colapsado: marca que vira botão no hover --- */}
+      <div className="hidden justify-center group-data-[collapsible=icon]:flex">
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label="Expandir menu"
+          title="Expandir menu"
+          className="group/brand relative grid size-10 place-items-center rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <LogoTile
+            tone="light"
+            className="size-10 rounded-xl transition-all duration-200 group-hover/brand:scale-90 group-hover/brand:opacity-0 group-focus-visible/brand:scale-90 group-focus-visible/brand:opacity-0"
+          />
+          <span
+            aria-hidden
+            className="absolute inset-0 grid place-items-center rounded-xl border border-brand-snow/15 bg-brand-snow/5 text-brand-snow opacity-0 transition-all duration-200 group-hover/brand:opacity-100 group-focus-visible/brand:opacity-100"
+          >
+            <ChevronsRight className="size-4" />
+          </span>
+        </button>
+      </div>
+    </SidebarHeader>
   );
 }
 
@@ -151,26 +191,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" variant="inset" className="border-none">
       {/* Escopo `dark`: a sidebar é sempre preta, então os tokens internos seguem o tema escuro */}
       <div className="dark flex h-full w-full flex-col">
-        <SidebarHeader className="px-3 pt-4 pb-2 group-data-[collapsible=icon]:px-0">
-          <div className="flex items-center gap-2 group-data-[collapsible=icon]:hidden">
-            <Link
-              to="/"
-              className="flex min-w-0 items-center gap-2.5 outline-none"
-              onClick={() => setOpenMobile(false)}
-            >
-              <LogoTile tone="light" className="size-10" />
-              <div className="flex min-w-0 flex-col">
-                <Wordmark className="text-lg text-brand-snow" />
-                <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-sidebar-foreground/60">
-                  Gestão pessoal
-                </span>
-              </div>
-            </Link>
-          </div>
-          <div className="hidden justify-center group-data-[collapsible=icon]:flex">
-            <LogoTile tone="light" className="size-10 rounded-xl" />
-          </div>
-        </SidebarHeader>
+        <SidebarBrandHeader onNavigate={() => setOpenMobile(false)} />
 
         <SidebarContent className="px-2 group-data-[collapsible=icon]:px-0">
           <SidebarGroup>
@@ -178,7 +199,6 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className="gap-1">{renderItems(centralItems)}</SidebarMenu>
             </SidebarGroupContent>
-            <SidebarCollapseToggle />
           </SidebarGroup>
 
           <SidebarGroup>
@@ -266,7 +286,9 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
         toast.success("Notificações push desativadas.");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Não foi possível atualizar as notificações.");
+      toast.error(
+        err instanceof Error ? err.message : "Não foi possível atualizar as notificações.",
+      );
     } finally {
       setPushLoading(false);
     }
