@@ -95,9 +95,8 @@ Use a área que melhor descreve o domínio da automação. Áreas já em uso na 
 - Projeto: `https://ehjsbzjkyukssobtywpx.supabase.co` (ref `ehjsbzjkyukssobtywpx`).
 - Este projeto Supabase é **exclusivo do RICC OS** — pode ser usado livremente.
 - Tabelas atuais (schema `public`, todas com RLS habilitado): `usuarios`, `categorias`,
-  `subcategorias`, `transacoes`, `metas`, e as do minigame: `missoes`, `recompensas`, `temporadas`
-  (estas três com políticas `user_id = auth.uid()`; as antigas usam a política ampla "Liberar Acesso").
-  `recompensas` está **órfã** desde 23/09/2026 — o app não lê nem escreve nela (ver seção 5).
+  `subcategorias`, `transacoes`, `metas`, e as do minigame: `missoes` e `temporadas`
+  (estas duas com políticas `user_id = auth.uid()`; as antigas usam a política ampla "Liberar Acesso").
 - `transacoes.transacao_origem` (`manual`|`voz`|`wallet`), `transacao_revisada` (false = fila de revisão
   das compras da Wallet em `wallet-review.tsx`) e `transacao_chave_externa` (dedupe, índice único parcial).
 - Inserts sempre com `user_id: user.id` (auth), seguindo `store.tsx`.
@@ -169,9 +168,9 @@ e widgets em `season-widgets.tsx` (`ScoreCard` na Visão Geral, `ScoreBadge` na 
 - **XP/nível** = soma de `temporada_pontos` de todas as temporadas fechadas (`LEVELS`);
   **streak** = temporadas consecutivas mais recentes com faixa ≥ Bronze.
 - **Sem recompensas/prendas**: o jogo é só missões, pontos, faixa e XP (removido em 23/09/2026 a
-  pedido do usuário). Não reintroduzir catálogo, sorteio ou punição sem ele pedir. A tabela
-  `recompensas` e as colunas `temporada_recompensa_id`/`temporada_prenda_id` continuam no banco,
-  órfãs e sem uso — só remover mediante confirmação explícita.
+  pedido do usuário, no app e no banco — tabela `recompensas` e colunas
+  `temporada_recompensa_id`/`temporada_prenda_id` dropadas). Não reintroduzir catálogo, sorteio
+  ou punição sem ele pedir.
 - Ao mudar regras/pontos, manter `computeAutoMissions` pura e atualizar esta seção.
 
 ## 6. Segurança
