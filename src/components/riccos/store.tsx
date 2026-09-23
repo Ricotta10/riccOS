@@ -31,6 +31,9 @@ type Store = {
   updateTransaction: (id: string, patch: Partial<Transaction>) => Promise<void>;
   removeTransaction: (id: string) => Promise<void>;
   toggleStatus: (id: string) => Promise<void>;
+  markReviewed: (id: string) => Promise<void>;
+  convertToInstallments: (id: string, total: number) => Promise<void>;
+  convertToRecurring: (id: string) => Promise<void>;
   setGoal: (categoryId: string, limit: number) => Promise<void>;
   budgets: { category: string; limit: number }[];
   setBudget: (category: string, limit: number) => void;
@@ -144,6 +147,7 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
             transacao_parcela_atual: null,
             transacao_parcela_total: null,
             transacao_parcela_id: null,
+            transacao_origem: tx.origem ?? "manual",
           });
 
           localTxsToInsert.push({
@@ -205,6 +209,7 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
             transacao_parcela_id: grupoParcelaId,
             transacao_recorrencia_id: null,
             transacao_data_fim: null,
+            transacao_origem: tx.origem ?? "manual",
           });
 
           localTxsToInsert.push({
@@ -245,6 +250,7 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
           transacao_parcela_id: null,
           transacao_recorrencia_id: null,
           transacao_data_fim: null,
+          transacao_origem: tx.origem ?? "manual",
         };
 
         const localTx: Transaction = { ...tx, id: newId, parcelaId: grupoParcelaId ?? undefined };
@@ -342,6 +348,49 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
     [transactions, refetchData],
   );
 
+  const markReviewed = useCallback(
+    async (id: string) => {
+      setTransactions((prev) => prev.map((tx) => (tx.id === id ? { ...tx, revisada: true } : tx)));
+      try {
+        await supabase.from("transacoes").update({ transacao_revisada: true }).eq("transacao_id", id);
+        await refetchData();
+      } catch (err) {
+        console.error("Erro ao marcar transação como revisada:", err);
+      }
+    },
+    [refetchData],
+  );
+
+  // Converte um lançamento automático (valor cheio, pontual) em parcelas:
+  // cria as N parcelas a partir da data da compra e remove o lançamento original.
+  const convertToInstallments = useCallback(
+    async (id: string, total: number) => {
+      const original = transactions.find((t) => t.id === id);
+      if (!original || total < 2) return;
+      const { id: _id, ...rest } = original;
+      await addTransaction({
+        ...rest,
+        amount: Math.round((original.amount / total) * 100) / 100,
+        frequency: { kind: "parcelado", current: 1, total },
+        revisada: true,
+      });
+      await removeTransaction(id);
+    },
+    [transactions, addTransaction, removeTransaction],
+  );
+
+  // Converte um lançamento automático em gasto fixo, projetando os próximos meses.
+  const convertToRecurring = useCallback(
+    async (id: string) => {
+      const original = transactions.find((t) => t.id === id);
+      if (!original) return;
+      const { id: _id, ...rest } = original;
+      await addTransaction({ ...rest, frequency: { kind: "recorrente" }, revisada: true });
+      await removeTransaction(id);
+    },
+    [transactions, addTransaction, removeTransaction],
+  );
+
   const setGoal = useCallback(
     async (categoryId: string, limit: number) => {
       const metaMes = month + 1;
@@ -427,6 +476,9 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
       updateTransaction,
       removeTransaction,
       toggleStatus,
+      markReviewed,
+      convertToInstallments,
+      convertToRecurring,
       setGoal,
       budgets,
       setBudget: (category, limit) =>
@@ -446,6 +498,9 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
     updateTransaction,
     removeTransaction,
     toggleStatus,
+    markReviewed,
+    convertToInstallments,
+    convertToRecurring,
     setGoal,
     budgets,
     refetchData,

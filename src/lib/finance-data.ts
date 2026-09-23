@@ -55,6 +55,8 @@ export interface DbTransaction {
   transacao_parcela_id?: string | null;
   transacao_recorrencia_id?: string | null;
   transacao_data_fim?: string | null;
+  transacao_origem?: string | null;
+  transacao_revisada?: boolean | null;
   criado_em?: string;
 }
 
@@ -74,7 +76,13 @@ export type Transaction = {
   amount: number;
   status: TxStatus;
   userId?: string | undefined;
+  /** De onde veio o lançamento; "wallet" = automação da Apple Wallet. */
+  origem?: TxOrigem | undefined;
+  /** false = lançamento automático aguardando revisão do usuário. */
+  revisada?: boolean | undefined;
 };
+
+export type TxOrigem = "manual" | "voz" | "wallet";
 
 export function mapDbTransactionToTransaction(
   dbTx: DbTransaction,
@@ -126,6 +134,8 @@ export function mapDbTransactionToTransaction(
         : Number(dbTx.transacao_valor) || 0,
     status: txStatus,
     userId: dbTx.user_id,
+    origem: (dbTx.transacao_origem as TxOrigem | null) ?? "manual",
+    revisada: dbTx.transacao_revisada ?? true,
   };
 }
 

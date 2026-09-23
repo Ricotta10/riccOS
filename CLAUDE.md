@@ -44,7 +44,8 @@ Se houver qualquer dúvida se um workflow pertence ao RICC OS → **não mexer, 
 |---------------------|-----------------------------------------------|--------|
 | `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Financeiro - Salvar Transações`  | 🟢 Publicado |
 | `Qg4qY07wPI9HC8k6`  | `🟢Ricc OS | Financeiro - Gerar Metas com IA` | 🟢 Publicado |
-| `PlwBzdIQVUFQ3rm9`  | `🟡Ricc OS | Financeiro - Gerar Insights de Gastos` | 🟡 Rascunho (envia push reaproveitando a credencial `Supabase - Ricc OS`; aguardando teste manual antes de publicar) |
+| `PlwBzdIQVUFQ3rm9`  | `🟢Ricc OS | Financeiro - Gerar Insights de Gastos` | 🟢 Publicado (roda toda segunda 7h; envia push reaproveitando a credencial `Supabase - Ricc OS`) |
+| `TiXgtApZDQzt6G16`  | `🟢Ricc OS | Financeiro - Lançar Compra Wallet` | 🟢 Publicado (webhook `riccos-wallet-compra` chamado pela automação "Transação" do Atalhos do iPhone; header `X-Riccos-Token` via credencial `Ricc OS - Webhook Wallet`) |
 
 > Atualize esta tabela sempre que criar ou remover um workflow do RICC OS.
 
@@ -96,6 +97,8 @@ Use a área que melhor descreve o domínio da automação. Áreas já em uso na 
 - Tabelas atuais (schema `public`, todas com RLS habilitado): `usuarios`, `categorias`,
   `subcategorias`, `transacoes`, `metas`, e as do minigame: `missoes`, `recompensas`, `temporadas`
   (estas três com políticas `user_id = auth.uid()`; as antigas usam a política ampla "Liberar Acesso").
+- `transacoes.transacao_origem` (`manual`|`voz`|`wallet`), `transacao_revisada` (false = fila de revisão
+  das compras da Wallet em `wallet-review.tsx`) e `transacao_chave_externa` (dedupe, índice único parcial).
 - Inserts sempre com `user_id: user.id` (auth), seguindo `store.tsx`.
 - Antes de alterar schema, inspecione as tabelas existentes (`list_tables` verbose).
 - Toda tabela nova **deve ter RLS habilitado** e políticas definidas.

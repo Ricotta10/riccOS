@@ -13,6 +13,7 @@ import {
 import { PageHeader } from "@/components/riccos/app-shell";
 import { useRiccos } from "@/components/riccos/store";
 import { TransactionDialog } from "@/components/riccos/transaction-dialog";
+import { WalletReview } from "@/components/riccos/wallet-review";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -142,6 +143,8 @@ function TransactionsPage() {
           <Plus /> Novo lançamento
         </Button>
       </PageHeader>
+
+      <WalletReview onEdit={openEdit} />
 
       {/* Filtros */}
       <Card>
