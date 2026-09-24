@@ -44,6 +44,7 @@ import {
   formatBRL,
   getTransactionPeriod,
 } from "@/lib/finance-data";
+import { computeFutureProjection } from "@/lib/future-projection";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/relatorios")({
@@ -266,38 +267,19 @@ function ReportsPage() {
     setExpandedCategories(nextState);
   };
 
-  // Projeção Futura (Próximos Meses a partir de hoje)
-  const futureProjection = useMemo(() => {
-    const nowStr = periodKey(currentPeriod.year, currentPeriod.month1);
-    const map = new Map<string, { label: string; committed: number; count: number }>();
-
-    transactions.forEach((tx) => {
-      if (tx.type !== "despesa" || !tx.date) return;
-      const ym = txPeriodKey(tx.date, cutoffDay);
-      if (ym < nowStr) return;
-
-      if (!map.has(ym)) {
-        map.set(ym, {
-          label: formatMonthYearLabel(ym),
-          committed: 0,
-          count: 0,
-        });
-      }
-      const item = map.get(ym)!;
-      item.committed += tx.amount;
-      item.count += 1;
-    });
-
-    const sorted = Array.from(map.entries())
-      .sort(([k1], [k2]) => k1.localeCompare(k2))
-      .slice(0, 6)
-      .map(([, val]) => val);
-
-    const totalCommitted = sorted.reduce((acc, item) => acc + item.committed, 0);
-    const max = sorted.reduce((acc, item) => Math.max(acc, item.committed), 0);
-
-    return { list: sorted, totalCommitted, max };
-  }, [transactions, cutoffDay, currentPeriod]);
+  // Projeção futura: lançado + estimativa de variáveis (ver src/lib/future-projection.ts)
+  const futureProjection = useMemo(
+    () => computeFutureProjection({ transactions, cutoffDay, current: currentPeriod }),
+    [transactions, cutoffDay, currentPeriod],
+  );
+  // Escala comum das barras: o maior entre gasto previsto e renda de todos os meses.
+  const projectionScale = Math.max(
+    1,
+    ...futureProjection.rows.map((r) => Math.max(r.total, r.income)),
+  );
+  const projectionBase = futureProjection.basePeriods
+    .map((p) => monthNamesShort[p.month1 - 1]?.toLowerCase())
+    .join(", ");
 
   const totalSubcategories = categoryBreakdown.list.reduce(
     (acc, c) => acc + c.subcategories.length,
@@ -504,7 +486,7 @@ function ReportsPage() {
           <CardHeader>
             <CardTitle className="text-base">Projeção futura</CardTitle>
             <CardDescription className="text-xs">
-              Compromissos recorrentes e parcelas vincendas
+              Fixos e parcelas já lançados + estimativa dos seus gastos variáveis.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -514,39 +496,84 @@ function ReportsPage() {
                 className="pointer-events-none absolute -right-8 -top-8 size-32 rounded-full bg-brand-snow/10 blur-2xl"
               />
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] opacity-80">
-                Total comprometido
+                Sobra prevista · {futureProjection.monthsWithIncome}{" "}
+                {futureProjection.monthsWithIncome === 1 ? "mês" : "meses"}
               </p>
               <p className="mt-1 text-2xl font-semibold tabular-nums">
-                {formatBRL(futureProjection.totalCommitted)}
+                {futureProjection.totalBalance < 0 ? "−" : "+"}
+                {formatBRL(Math.abs(futureProjection.totalBalance))}
               </p>
               <p className="mt-1 text-xs opacity-80">
-                Próximos {futureProjection.list.length} meses projetados
+                {futureProjection.variableMedian !== null
+                  ? `Variáveis estimados em ~${formatBRL(futureProjection.variableMedian)}/mês (mediana de ${projectionBase}).`
+                  : "Ainda sem um mês completo de histórico: considera só o que já está lançado."}
               </p>
             </div>
+
+            <div className="flex flex-wrap gap-x-4 gap-y-1 px-3 text-[11px] text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-primary" /> Lançado
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="size-2 rounded-full bg-primary/35" /> Variáveis estimados
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-0.5 rounded-full bg-foreground/60" /> Renda
+              </span>
+            </div>
+
             <div className="space-y-1.5">
-              {futureProjection.list.map((item) => {
-                const pct =
-                  futureProjection.max > 0 ? (item.committed / futureProjection.max) * 100 : 0;
-                return (
-                  <div
-                    key={item.label}
-                    className="rounded-xl px-3 py-2.5 transition-colors hover:bg-accent/60"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-sm font-medium">{item.label}</span>
-                      <span className="text-sm font-semibold tabular-nums">
-                        {formatBRL(item.committed)}
+              {futureProjection.rows.map((row) => (
+                <div
+                  key={row.key}
+                  className="rounded-xl px-3 py-2.5 transition-colors hover:bg-accent/60"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-medium">
+                      {formatMonthYearLabel(row.key)}
+                      {row.isCurrent && (
+                        <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                          atual
+                        </span>
+                      )}
+                    </span>
+                    {row.income > 0 ? (
+                      <span
+                        className={cn(
+                          "text-sm font-semibold tabular-nums",
+                          row.balance >= 0 ? "text-success" : "text-danger",
+                        )}
+                      >
+                        {row.balance < 0 ? "−" : "+"}
+                        {formatBRL(Math.abs(row.balance))}
                       </span>
-                    </div>
-                    <Progress value={pct} className="mt-2 h-1" />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">sem receita lançada</span>
+                    )}
                   </div>
-                );
-              })}
-              {futureProjection.list.length === 0 && (
-                <p className="py-4 text-center text-xs text-muted-foreground">
-                  Sem projeções de gastos para os próximos meses.
-                </p>
-              )}
+                  <div className="relative mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full bg-primary"
+                      style={{ width: `${(row.committed / projectionScale) * 100}%` }}
+                    />
+                    <div
+                      className="h-full bg-primary/35"
+                      style={{ width: `${(row.estimatedVariable / projectionScale) * 100}%` }}
+                    />
+                    {row.income > 0 && (
+                      <div
+                        aria-hidden
+                        className="absolute inset-y-0 w-0.5 bg-foreground/60"
+                        style={{ left: `${Math.min(99.5, (row.income / projectionScale) * 100)}%` }}
+                      />
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-[11px] tabular-nums text-muted-foreground">
+                    Gastos ~{formatBRL(row.total)}
+                    {row.income > 0 && ` de ${formatBRL(row.income)}`}
+                  </p>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
