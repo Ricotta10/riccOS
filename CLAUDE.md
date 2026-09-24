@@ -42,10 +42,11 @@ Se houver qualquer dúvida se um workflow pertence ao RICC OS → **não mexer, 
 
 | ID                  | Nome                                          | Status |
 |---------------------|-----------------------------------------------|--------|
-| `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Financeiro - Salvar Transações`  | 🟢 Publicado |
+| `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Operação - Central de Comando por Voz` (antigo "Financeiro - Salvar Transações") | 🟢 Publicado (voz da Central; `Roteador de Domínio` separa Financeiro / Academia / Alimentação / Outro — só Financeiro tem fluxo, os outros são placeholders; parcelado vira N linhas no nó `RESULTADO FINAL`) |
 | `Qg4qY07wPI9HC8k6`  | `🟢Ricc OS | Financeiro - Gerar Metas com IA` | 🟢 Publicado |
 | `PlwBzdIQVUFQ3rm9`  | `🟢Ricc OS | Financeiro - Gerar Insights de Gastos` | 🟢 Publicado (roda toda segunda 7h; envia push reaproveitando a credencial `Supabase - Ricc OS`) |
 | `TiXgtApZDQzt6G16`  | `🟢Ricc OS | Financeiro - Lançar Compra Wallet` | 🟢 Publicado (webhook `riccos-wallet-compra` chamado pela automação "Transação" do Atalhos do iPhone; header `X-Riccos-Token` via credencial `Ricc OS - Webhook Wallet`) |
+| `Fu6fdrAVnSQk9Wru`  | `🟢Ricc OS | Financeiro - Alertas de Metas` | 🟢 Publicado (todo dia 9h; push quando meta passa de 80%, estoura ou fica em risco pelo ritmo; dedupe em `alertas_enviados`; nó `Calcular Alertas` espelha `src/lib/month-pace.ts` — **mudar nos dois lugares**) |
 
 > Atualize esta tabela sempre que criar ou remover um workflow do RICC OS.
 
@@ -98,8 +99,23 @@ Use a área que melhor descreve o domínio da automação. Áreas já em uso na 
   `subcategorias`, `transacoes`, `metas`, e as do minigame: `missoes` e `temporadas`
   (estas duas com políticas `user_id = auth.uid()`; as antigas usam a política ampla "Liberar Acesso").
 - `transacoes.transacao_origem` (`manual`|`voz`|`wallet`), `transacao_revisada` (false = fila de revisão
-  das compras da Wallet em `wallet-review.tsx`) e `transacao_chave_externa` (dedupe, índice único parcial).
+  das compras da Wallet em `wallet-review.tsx`), `transacao_chave_externa` (dedupe, índice único parcial) e
+  `transacao_estabelecimento_original` (nome cru da Wallet, antes de apelido/IA).
+- `estabelecimentos_apelidos` (RLS `user_id = auth.uid()`): mapeia nome cru → nome amigável + categoria.
+  `apelido_padrao` = `normalizeMerchant(trecho)` (sem acento, minúsculo, só `[a-z0-9]`), casa por "contém" e o
+  mais longo vence. A mesma normalização vive no nó `Decidir Ação` do workflow Wallet — **mudar nos dois lugares**.
+  UI em `merchant-aliases.tsx` (botão "Apelidar" na revisão e "Apelidos" em Transações).
+- **Reserva** (RLS `user_id = auth.uid()`): `reservas` (1 por usuário: `reserva_alvo`, `reserva_saldo_inicial`)
+  e `reserva_movimentos` (`aporte`|`resgate`, valor sempre positivo). Aportes/resgates **não** são receita nem
+  despesa — ficam fora de metas, missões e sobra. Cálculos em `src/lib/reserva.ts`, UI em `reserva-card.tsx`
+  (Visão Geral: sobra do período → guardado → sem destino).
+- `alertas_enviados` (RLS só leitura do dono; escrita pelo n8n com service role): chave única
+  `{nivel}:{categoria_id}:{AAAA-MM}` por usuário, para cada alerta de meta sair uma vez por período.
 - Inserts sempre com `user_id: user.id` (auth), seguindo `store.tsx`.
+- **Compra parcelada:** o valor informado é o **total** da compra; `addTransaction` divide com
+  `splitInstallments` (`finance-data.ts`, centavos que sobram vão nas primeiras parcelas) e grava
+  uma linha por mês com o mesmo `transacao_parcela_id`. O nó `RESULTADO FINAL` do workflow
+  Central de Comando por Voz replica essa lógica — **mudar nos dois lugares**.
 - Antes de alterar schema, inspecione as tabelas existentes (`list_tables` verbose).
 - Toda tabela nova **deve ter RLS habilitado** e políticas definidas.
 - Prefira `apply_migration` (com nome descritivo em snake_case) a `execute_sql` para DDL.

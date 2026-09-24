@@ -26,7 +26,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { categories, categoryList, type Transaction, type TxType } from "@/lib/finance-data";
+import {
+  categories,
+  categoryList,
+  formatBRL,
+  splitInstallments,
+  type Transaction,
+  type TxType,
+} from "@/lib/finance-data";
 import { useRiccos } from "./store";
 
 function formatCurrencyInput(val: string): string {
@@ -66,6 +73,8 @@ export function TransactionDialog({
   const [frequency, setFrequency] = useState<"pontual" | "recorrente" | "parcelado">("pontual");
   const [currentInstallment, setCurrentInstallment] = useState("1");
   const [totalInstallments, setTotalInstallments] = useState("2");
+  // Numa compra parcelada nova, o valor digitado pode ser o total da compra ou o de cada parcela.
+  const [amountMode, setAmountMode] = useState<"total" | "parcela">("total");
   const [endDate, setEndDate] = useState<Date | undefined>(undefined);
   const [paid, setPaid] = useState(false);
 
@@ -130,17 +139,28 @@ export function TransactionDialog({
       setEndDate(undefined);
       setCurrentInstallment("1");
       setTotalInstallments("2");
+      setAmountMode("total");
       setPaid(false);
     }
   }, [open, editing]);
 
+  const isNewInstallment = !editing && frequency === "parcelado";
+  const installmentCount = Math.max(1, Number(totalInstallments) || 1);
+  const numericAmount = parseCurrencyToNumber(amount);
+  // Ao criar uma compra parcelada o store recebe o valor TOTAL e divide entre as parcelas.
+  const purchaseTotal =
+    isNewInstallment && amountMode === "parcela" ? numericAmount * installmentCount : numericAmount;
+  const installmentPreview =
+    isNewInstallment && numericAmount > 0 ? splitInstallments(purchaseTotal, installmentCount) : [];
+  const firstInstallment = installmentPreview[0] ?? 0;
+  const lastInstallment = installmentPreview[installmentPreview.length - 1] ?? 0;
+
   const submit = () => {
-    const numericAmount = parseCurrencyToNumber(amount);
     if (!description || numericAmount <= 0 || !date || (!categoryId && !categoryName)) return;
 
     const payload: Omit<Transaction, "id"> = {
       description,
-      amount: numericAmount,
+      amount: purchaseTotal,
       date: format(date, "yyyy-MM-dd"),
       endDate: frequency === "recorrente" && endDate ? format(endDate, "yyyy-MM-dd") : undefined,
       category: categoryName || "Outros",
@@ -221,7 +241,13 @@ export function TransactionDialog({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="grid gap-2">
-              <Label htmlFor="valor">Valor (R$)</Label>
+              <Label htmlFor="valor">
+                {frequency === "parcelado" && (editing || amountMode === "parcela")
+                  ? "Valor da parcela (R$)"
+                  : frequency === "parcelado"
+                    ? "Valor total (R$)"
+                    : "Valor (R$)"}
+              </Label>
               <div className="relative">
                 <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">
                   R$
@@ -424,6 +450,40 @@ export function TransactionDialog({
                   onChange={(e) => setTotalInstallments(e.target.value)}
                 />
               </div>
+              {isNewInstallment && (
+                <div className="grid gap-2 sm:col-span-2">
+                  <div className="grid grid-cols-2 gap-1 rounded-2xl bg-secondary p-1">
+                    {(
+                      [
+                        { value: "total", label: "Valor é o total" },
+                        { value: "parcela", label: "Valor é da parcela" },
+                      ] as const
+                    ).map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setAmountMode(option.value)}
+                        className={cn(
+                          "flex h-9 items-center justify-center rounded-xl text-xs font-semibold transition-all",
+                          amountMode === option.value
+                            ? "bg-card text-foreground shadow-soft"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  {installmentPreview.length > 0 && (
+                    <p className="text-xs text-muted-foreground tabular-nums">
+                      {installmentCount}x de {formatBRL(lastInstallment)}
+                      {firstInstallment !== lastInstallment &&
+                        ` (1ª de ${formatBRL(firstInstallment)})`}{" "}
+                      · total {formatBRL(purchaseTotal)}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

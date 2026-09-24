@@ -13,6 +13,8 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import { PageHeader } from "@/components/riccos/app-shell";
 import { InsightsCard } from "@/components/riccos/insights-card";
+import { MonthPaceCard } from "@/components/riccos/month-pace-card";
+import { ReservaCard } from "@/components/riccos/reserva-card";
 import { ScoreCard } from "@/components/riccos/season-widgets";
 import { StatCard } from "@/components/riccos/stat-card";
 import { useRiccos } from "@/components/riccos/store";
@@ -142,8 +144,6 @@ function Overview() {
       .slice(0, 10);
   }, [monthTransactions]);
 
-  const expensePercentage = entradas > 0 ? Math.min(Math.round((saidas / entradas) * 100), 100) : 0;
-
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader
@@ -186,193 +186,178 @@ function Overview() {
 
       <InsightsCard />
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        <ScoreCard className="lg:col-span-5" />
-        {entradas > 0 && (
-          <Card className="lg:col-span-7">
-            <CardContent className="p-5 sm:p-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div className="space-y-1">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    Comprometimento da renda
-                  </span>
-                  <p className="text-sm font-medium">
-                    <span className="text-primary font-semibold">{expensePercentage}%</span> das
-                    receitas do mês estão comprometidas com despesas.
-                  </p>
-                </div>
-                <span className="text-lg font-semibold tabular-nums">
-                  {formatBRL(saidas)}{" "}
-                  <span className="text-sm font-medium text-muted-foreground">
-                    / {formatBRL(entradas)}
-                  </span>
-                </span>
-              </div>
-              <Progress value={expensePercentage} className="mt-4 h-2.5" />
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      {/* Seção de Gráficos e Categorias Detalhadas */}
+      {/*
+        Duas colunas: a esquerda (temporada, ritmo e rosca) define a altura do bloco; no desktop
+        o card de categorias ocupa exatamente essa altura e rola por dentro — assim os cards
+        fecham alinhados, sem sobrar espaço vazio em nenhum lado.
+      */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        {/* Gráfico Rosca das Categorias */}
-        <Card className="lg:col-span-5">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
-                <PieIcon className="size-4" />
-              </span>
-              Distribuição de gastos
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Proporção de consumo por categoria no mês selecionado.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center justify-center pt-0">
-            {categoryBreakdown.list.length > 0 ? (
-              <div className="relative h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categoryBreakdown.list}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={68}
-                      outerRadius={96}
-                      paddingAngle={3}
-                      cornerRadius={6}
-                      dataKey="amount"
-                      stroke="none"
-                    >
-                      {categoryBreakdown.list.map((entry) => (
-                        <Cell key={entry.name} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value: number) => [formatBRL(value), "Gasto"]}
-                      contentStyle={chartTooltipStyle}
-                      itemStyle={{ color: "var(--color-foreground)" }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    Total
-                  </span>
-                  <span className="text-lg font-semibold tabular-nums">
-                    {formatBRL(categoryBreakdown.totalSpent)}
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="py-12 text-center text-xs text-muted-foreground">
-                Nenhuma despesa registrada para o gráfico.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-6 lg:col-span-5">
+          <ScoreCard />
+          <MonthPaceCard />
 
-        {/* Lista Detalhada com Acordeão de Subcategorias */}
-        <Card className="lg:col-span-7">
-          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-            <div>
+          {/* Gráfico Rosca das Categorias */}
+          <Card>
+            <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
                 <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
-                  <Layers className="size-4" />
+                  <PieIcon className="size-4" />
                 </span>
-                Categorias & subcategorias
+                Distribuição de gastos
               </CardTitle>
-              <CardDescription className="mt-1.5 text-xs">
-                Toque na categoria para ver o detalhamento interno.
+              <CardDescription className="text-xs">
+                Proporção de consumo por categoria no mês selecionado.
               </CardDescription>
-            </div>
-            {categoryBreakdown.list.length > 0 && (
-              <Button variant="ghost" size="sm" onClick={toggleExpandAll}>
-                {allExpanded ? "Recolher" : "Expandir"}
-              </Button>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-2.5">
-            {categoryBreakdown.list.map((cat) => {
-              const isExpanded = !!expandedCategories[cat.name];
-              const hasSub = cat.subcategories.length > 0;
-
-              return (
-                <div
-                  key={cat.name}
-                  className="rounded-2xl border bg-background/40 p-3.5 transition-colors hover:border-ring/40"
-                >
-                  <button
-                    type="button"
-                    className="flex w-full items-center justify-between gap-3 text-left"
-                    onClick={() => toggleCategory(cat.name)}
-                    aria-expanded={isExpanded}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-2.5">
-                      <span
-                        className="size-2.5 shrink-0 rounded-full shadow-[0_0_8px_currentColor]"
-                        style={{ backgroundColor: cat.color, color: cat.color }}
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center pt-0">
+              {categoryBreakdown.list.length > 0 ? (
+                <div className="relative h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={categoryBreakdown.list}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={68}
+                        outerRadius={96}
+                        paddingAngle={3}
+                        cornerRadius={6}
+                        dataKey="amount"
+                        stroke="none"
+                      >
+                        {categoryBreakdown.list.map((entry) => (
+                          <Cell key={entry.name} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number) => [formatBRL(value), "Gasto"]}
+                        contentStyle={chartTooltipStyle}
+                        itemStyle={{ color: "var(--color-foreground)" }}
                       />
-                      <span className="truncate text-sm font-semibold">{cat.name}</span>
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {Math.round(cat.percentage)}%
-                      </span>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-sm font-semibold tabular-nums">
-                        {formatBRL(cat.amount)}
-                      </span>
-                      {hasSub && (
-                        <ChevronDown
-                          className={cn(
-                            "size-4 text-muted-foreground transition-transform duration-300",
-                            isExpanded && "rotate-180",
-                          )}
-                        />
-                      )}
-                    </div>
-                  </button>
-
-                  <Progress
-                    value={cat.percentage}
-                    className="mt-3 h-1.5"
-                    style={{ "--progress-background": cat.color } as React.CSSProperties}
-                  />
-
-                  {isExpanded && hasSub && (
-                    <div className="mt-3 space-y-1.5 border-t border-border/60 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                      {cat.subcategories.map((sub) => (
-                        <div
-                          key={sub.name}
-                          className="flex items-center justify-between rounded-xl bg-secondary/60 px-3 py-2 text-xs transition-colors hover:bg-secondary"
-                        >
-                          <span className="truncate font-medium text-muted-foreground">
-                            {sub.name}
-                          </span>
-                          <div className="flex items-center gap-2 tabular-nums">
-                            <span className="text-[11px] text-muted-foreground">
-                              {Math.round(sub.percentageOfCategory)}%
-                            </span>
-                            <span className="font-semibold">{formatBRL(sub.amount)}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      Total
+                    </span>
+                    <span className="text-lg font-semibold tabular-nums">
+                      {formatBRL(categoryBreakdown.totalSpent)}
+                    </span>
+                  </div>
                 </div>
-              );
-            })}
+              ) : (
+                <div className="py-12 text-center text-xs text-muted-foreground">
+                  Nenhuma despesa registrada para o gráfico.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-            {categoryBreakdown.list.length === 0 && (
-              <div className="rounded-2xl border border-dashed py-10 text-center text-xs text-muted-foreground">
-                Nenhum lançamento de despesa no mês para categorização.
+        {/* Lista Detalhada com Acordeão de Subcategorias */}
+        <div className="lg:relative lg:col-span-7">
+          <Card className="flex flex-col lg:absolute lg:inset-0">
+            <CardHeader className="flex shrink-0 flex-row items-start justify-between gap-3 space-y-0">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <span className="grid size-8 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <Layers className="size-4" />
+                  </span>
+                  Categorias & subcategorias
+                </CardTitle>
+                <CardDescription className="mt-1.5 text-xs">
+                  Toque na categoria para ver o detalhamento interno.
+                </CardDescription>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              {categoryBreakdown.list.length > 0 && (
+                <Button variant="ghost" size="sm" onClick={toggleExpandAll}>
+                  {allExpanded ? "Recolher" : "Expandir"}
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="min-h-0 flex-1 space-y-2.5 overflow-y-auto">
+              {categoryBreakdown.list.map((cat) => {
+                const isExpanded = !!expandedCategories[cat.name];
+                const hasSub = cat.subcategories.length > 0;
+
+                return (
+                  <div
+                    key={cat.name}
+                    className="rounded-2xl border bg-background/40 p-3.5 transition-colors hover:border-ring/40"
+                  >
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 text-left"
+                      onClick={() => toggleCategory(cat.name)}
+                      aria-expanded={isExpanded}
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                        <span
+                          className="size-2.5 shrink-0 rounded-full shadow-[0_0_8px_currentColor]"
+                          style={{ backgroundColor: cat.color, color: cat.color }}
+                        />
+                        <span className="truncate text-sm font-semibold">{cat.name}</span>
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {Math.round(cat.percentage)}%
+                        </span>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-sm font-semibold tabular-nums">
+                          {formatBRL(cat.amount)}
+                        </span>
+                        {hasSub && (
+                          <ChevronDown
+                            className={cn(
+                              "size-4 text-muted-foreground transition-transform duration-300",
+                              isExpanded && "rotate-180",
+                            )}
+                          />
+                        )}
+                      </div>
+                    </button>
+
+                    <Progress
+                      value={cat.percentage}
+                      className="mt-3 h-1.5"
+                      style={{ "--progress-background": cat.color } as React.CSSProperties}
+                    />
+
+                    {isExpanded && hasSub && (
+                      <div className="mt-3 space-y-1.5 border-t border-border/60 pt-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                        {cat.subcategories.map((sub) => (
+                          <div
+                            key={sub.name}
+                            className="flex items-center justify-between rounded-xl bg-secondary/60 px-3 py-2 text-xs transition-colors hover:bg-secondary"
+                          >
+                            <span className="truncate font-medium text-muted-foreground">
+                              {sub.name}
+                            </span>
+                            <div className="flex items-center gap-2 tabular-nums">
+                              <span className="text-[11px] text-muted-foreground">
+                                {Math.round(sub.percentageOfCategory)}%
+                              </span>
+                              <span className="font-semibold">{formatBRL(sub.amount)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {categoryBreakdown.list.length === 0 && (
+                <div className="rounded-2xl border border-dashed py-10 text-center text-xs text-muted-foreground">
+                  Nenhum lançamento de despesa no mês para categorização.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      <ReservaCard />
 
       {/* Lançamentos do mês */}
       <Card>

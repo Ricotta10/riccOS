@@ -7,11 +7,13 @@ import {
   Pencil,
   Plus,
   Search,
+  Tag,
   Trash2,
 } from "lucide-react";
 
 import { PageHeader } from "@/components/riccos/app-shell";
 import { useRiccos } from "@/components/riccos/store";
+import { AliasManagerDialog } from "@/components/riccos/merchant-aliases";
 import { TransactionDialog } from "@/components/riccos/transaction-dialog";
 import { WalletReview } from "@/components/riccos/wallet-review";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +104,7 @@ function TransactionsPage() {
   const [status, setStatus] = useState("todos");
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [aliasesOpen, setAliasesOpen] = useState(false);
 
   const availableCategoryNames = useMemo(() => {
     if (dbCategories.length > 0) {
@@ -139,9 +142,14 @@ function TransactionsPage() {
         description="Todos os lançamentos do mês selecionado, com filtros e edição rápida."
         showBalance={false}
       >
-        <Button onClick={openNew} className="h-11 w-full sm:h-10 sm:w-auto">
-          <Plus /> Novo lançamento
-        </Button>
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+          <Button variant="outline" onClick={() => setAliasesOpen(true)} className="h-11 sm:h-10">
+            <Tag /> Apelidos
+          </Button>
+          <Button onClick={openNew} className="h-11 sm:h-10">
+            <Plus /> Novo lançamento
+          </Button>
+        </div>
       </PageHeader>
 
       <WalletReview onEdit={openEdit} />
@@ -343,6 +351,7 @@ function TransactionsPage() {
       </Card>
 
       <TransactionDialog open={open} onOpenChange={setOpen} editing={editing} />
+      <AliasManagerDialog open={aliasesOpen} onOpenChange={setAliasesOpen} />
     </div>
   );
 }

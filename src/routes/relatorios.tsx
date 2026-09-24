@@ -22,6 +22,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/riccos/app-shell";
 import { StatCard } from "@/components/riccos/stat-card";
 import { useRiccos } from "@/components/riccos/store";
@@ -37,7 +38,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { chartColors, chartTooltipStyle, formatBRL } from "@/lib/finance-data";
+import {
+  chartColors,
+  chartTooltipStyle,
+  formatBRL,
+  getTransactionPeriod,
+} from "@/lib/finance-data";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/relatorios")({
@@ -93,12 +99,54 @@ function formatMonthYearLabel(ymStr: string) {
   return `${monthNamesShort[m - 1]}/${y.toString().slice(-2)}`;
 }
 
+/** Chave "YYYY-MM" de um período (mês 1-indexado; aceita deslocamento fora de 1–12). */
+function periodKey(year: number, month1: number) {
+  const d = new Date(year, month1 - 1, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Período (ciclo financeiro) a que a transação pertence, respeitando o dia de corte —
+ * a mesma regra da Visão Geral e das Missões, para os números baterem entre as telas.
+ */
+function txPeriodKey(date: string, cutoffDay: number) {
+  const { year, month } = getTransactionPeriod(date, cutoffDay);
+  return periodKey(year, month);
+}
+
+/**
+ * Chaves da janela selecionada, sempre terminando no período atual.
+ * Sem a âncora, meses futuros (parcelas e recorrências já lançadas) entrariam no
+ * lugar dos recentes — "3 meses" mostrava 2027 em vez dos últimos 3.
+ */
+function buildMonthWindow(
+  range: keyof typeof ranges,
+  anchor: { year: number; month1: number },
+): string[] {
+  // "Ano atual": de janeiro até o período corrente
+  if (range === "ano") {
+    return Array.from({ length: anchor.month1 }, (_, i) => periodKey(anchor.year, i + 1));
+  }
+
+  const n = ranges[range].months;
+  return Array.from({ length: n }, (_, i) => periodKey(anchor.year, anchor.month1 - (n - 1 - i)));
+}
+
 function ReportsPage() {
   const { transactions } = useRiccos();
+  const { profile } = useAuth();
   const [range, setRange] = useState<keyof typeof ranges>("6m");
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({});
 
-  // Agrupamento de todas as transações por mês (YYYY-MM)
+  const cutoffDay = profile?.dia_vencimento ?? 3;
+
+  // Período (ciclo) corrente — âncora de todas as janelas desta página
+  const currentPeriod = useMemo(() => {
+    const { year, month } = getTransactionPeriod(new Date().toISOString().slice(0, 10), cutoffDay);
+    return { year, month1: month };
+  }, [cutoffDay]);
+
+  // Agrupamento de todas as transações por período (YYYY-MM, com dia de corte)
   const monthlyAggregated = useMemo(() => {
     const map = new Map<
       string,
@@ -107,7 +155,7 @@ function ReportsPage() {
 
     transactions.forEach((tx) => {
       if (!tx.date) return;
-      const ym = tx.date.slice(0, 7);
+      const ym = txPeriodKey(tx.date, cutoffDay);
       if (!map.has(ym)) {
         map.set(ym, {
           key: ym,
@@ -125,12 +173,15 @@ function ReportsPage() {
     });
 
     return Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
-  }, [transactions]);
+  }, [transactions, cutoffDay]);
 
-  // Filtrar histórico conforme range selecionado
+  // Histórico da janela selecionada (meses sem lançamento entram zerados)
   const historyData = useMemo(() => {
-    const numMonths = ranges[range].months;
-    const sliced = monthlyAggregated.slice(-numMonths);
+    const byKey = new Map(monthlyAggregated.map((row) => [row.key, row]));
+    const sliced = buildMonthWindow(range, currentPeriod).map(
+      (key) =>
+        byKey.get(key) ?? { key, label: formatMonthYearLabel(key), receitas: 0, despesas: 0 },
+    );
 
     return sliced.map((row, i) => {
       const net = row.receitas - row.despesas;
@@ -140,7 +191,7 @@ function ReportsPage() {
         prevNet !== null && prevNet !== 0 ? ((net - prevNet) / Math.abs(prevNet)) * 100 : null;
       return { ...row, net, variation };
     });
-  }, [monthlyAggregated, range]);
+  }, [monthlyAggregated, range, currentPeriod]);
 
   // Métricas do período selecionado
   const periodMetrics = useMemo(() => {
@@ -159,7 +210,7 @@ function ReportsPage() {
 
     transactions.forEach((tx) => {
       if (tx.type !== "despesa" || !tx.date) return;
-      const ym = tx.date.slice(0, 7);
+      const ym = txPeriodKey(tx.date, cutoffDay);
       if (!selectedMonthsKeys.has(ym)) return;
 
       const cat = tx.category || "Outros";
@@ -192,7 +243,7 @@ function ReportsPage() {
       .map((item, index) => ({ ...item, color: chartColors[index % chartColors.length] }));
 
     return { list, totalSpent };
-  }, [transactions, historyData]);
+  }, [transactions, historyData, cutoffDay]);
 
   const toggleCategory = (categoryName: string) => {
     setExpandedCategories((prev) => ({
@@ -217,12 +268,12 @@ function ReportsPage() {
 
   // Projeção Futura (Próximos Meses a partir de hoje)
   const futureProjection = useMemo(() => {
-    const nowStr = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    const nowStr = periodKey(currentPeriod.year, currentPeriod.month1);
     const map = new Map<string, { label: string; committed: number; count: number }>();
 
     transactions.forEach((tx) => {
       if (tx.type !== "despesa" || !tx.date) return;
-      const ym = tx.date.slice(0, 7);
+      const ym = txPeriodKey(tx.date, cutoffDay);
       if (ym < nowStr) return;
 
       if (!map.has(ym)) {
@@ -246,7 +297,7 @@ function ReportsPage() {
     const max = sorted.reduce((acc, item) => Math.max(acc, item.committed), 0);
 
     return { list: sorted, totalCommitted, max };
-  }, [transactions]);
+  }, [transactions, cutoffDay, currentPeriod]);
 
   const totalSubcategories = categoryBreakdown.list.reduce(
     (acc, c) => acc + c.subcategories.length,

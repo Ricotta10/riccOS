@@ -191,39 +191,6 @@ function GoalsPage() {
       return a.categoryName.localeCompare(b.categoryName);
     });
 
-    // LOG DEDICADO PARA A CATEGORIA DE ALIMENTAÇÃO
-    const alimentacaoData = sortedResult.find((r) =>
-      r.categoryName
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .includes("alimenta"),
-    );
-
-    console.group(`🍎 [TESTE ALIMENTAÇÃO] Período: ${currentMonth1Indexed}/${year}`);
-    console.log(`📌 Objeto da Categoria Alimentação:`, alimentacaoData);
-    if (alimentacaoData) {
-      console.log(`💰 Total Gasto Calculado na Categoria: R$ ${alimentacaoData.spent.toFixed(2)}`);
-      console.log(
-        `🎯 Meta do Mês (${currentMonth1Indexed}/${year}): R$ ${alimentacaoData.limit.toFixed(2)}`,
-      );
-      console.log(
-        `📋 Lista de Transações de Alimentação neste Mês (${alimentacaoData.txCount}):`,
-        alimentacaoData.txs.map((t) => ({
-          descricao: t.description,
-          valor: t.amount,
-          dataVencimento: t.date,
-          status: t.status,
-          frequencia: t.frequency,
-        })),
-      );
-    } else {
-      console.warn(
-        "⚠️ Categoria de Alimentação não foi encontrada na lista de categorias do banco.",
-      );
-    }
-    console.groupEnd();
-
     return sortedResult;
   }, [expenseCategories, dbGoals, currentMonth1Indexed, year, monthTransactions]);
 

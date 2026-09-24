@@ -1,11 +1,20 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { addMonths, format } from "date-fns";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import {
-  budgets as initialBudgets,
   getTransactionPeriod,
-  initialTransactions,
   mapDbTransactionToTransaction,
+  splitInstallments,
   type DbCategory,
   type DbGoal,
   type DbSubcategory,
@@ -27,20 +36,41 @@ type Store = {
   dbSubcategories: DbSubcategory[];
   dbGoals: DbGoal[];
   loading: boolean;
-  addTransaction: (tx: Omit<Transaction, "id">) => Promise<void>;
-  updateTransaction: (id: string, patch: Partial<Transaction>) => Promise<void>;
-  removeTransaction: (id: string) => Promise<void>;
-  toggleStatus: (id: string) => Promise<void>;
-  markReviewed: (id: string) => Promise<void>;
-  convertToInstallments: (id: string, total: number) => Promise<void>;
-  convertToRecurring: (id: string) => Promise<void>;
-  setGoal: (categoryId: string, limit: number) => Promise<void>;
-  budgets: { category: string; limit: number }[];
-  setBudget: (category: string, limit: number) => void;
+  // As mutações resolvem `true` quando o banco confirmou e `false` quando falhou
+  // (o usuário já foi avisado por toast e a tela voltou ao estado anterior).
+  addTransaction: (tx: Omit<Transaction, "id">) => Promise<boolean>;
+  updateTransaction: (id: string, patch: Partial<Transaction>) => Promise<boolean>;
+  removeTransaction: (id: string) => Promise<boolean>;
+  toggleStatus: (id: string) => Promise<boolean>;
+  markReviewed: (id: string) => Promise<boolean>;
+  convertToInstallments: (id: string, total: number) => Promise<boolean>;
+  convertToRecurring: (id: string) => Promise<boolean>;
+  setGoal: (categoryId: string, limit: number) => Promise<boolean>;
   refetchData: () => Promise<void>;
 };
 
 const StoreContext = createContext<Store | null>(null);
+
+/**
+ * O supabase-js não lança exceção em erro de banco: devolve `{ error }`. Este helper
+ * checa esse retorno (e falhas de rede), avisa o usuário e diz se a operação deu certo.
+ */
+async function persist(
+  action: string,
+  request: PromiseLike<{ error: unknown }>,
+): Promise<boolean> {
+  try {
+    const { error } = await request;
+    if (!error) return true;
+    console.error(`Erro ao ${action}:`, error);
+  } catch (err) {
+    console.error(`Erro ao ${action}:`, err);
+  }
+  toast.error(`Não foi possível ${action}.`, {
+    description: "Nada foi alterado. Verifique sua conexão e tente de novo.",
+  });
+  return false;
+}
 
 export function RiccosProvider({ children }: { children: ReactNode }) {
   const { user, profile } = useAuth();
@@ -51,8 +81,27 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
   const [dbCategories, setDbCategories] = useState<DbCategory[]>([]);
   const [dbSubcategories, setDbSubcategories] = useState<DbSubcategory[]>([]);
   const [dbGoals, setDbGoals] = useState<DbGoal[]>([]);
-  const [budgets, setBudgets] = useState(initialBudgets);
   const [loading, setLoading] = useState(false);
+
+  // Espelho da lista atual, para as mutações tirarem um snapshot e desfazerem a
+  // atualização otimista se o banco recusar (sem depender de `transactions` nos deps).
+  const transactionsRef = useRef(transactions);
+  transactionsRef.current = transactions;
+
+  const applyOptimistic = useCallback(
+    async (
+      action: string,
+      update: (prev: Transaction[]) => Transaction[],
+      request: () => PromiseLike<{ error: unknown }>,
+    ) => {
+      const snapshot = transactionsRef.current;
+      setTransactions(update);
+      const ok = await persist(action, request());
+      if (!ok) setTransactions(snapshot);
+      return ok;
+    },
+    [],
+  );
 
   const refetchData = useCallback(async () => {
     setLoading(true);
@@ -116,7 +165,7 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
         const initialDate = new Date(`${tx.date}T12:00:00`);
         const horizonN = 12; // 12 meses de projeção padrão
 
-        const rowsToInsert = [];
+        const rowsToInsert: Record<string, unknown>[] = [];
         const localTxsToInsert: Transaction[] = [];
 
         for (let i = 0; i < horizonN; i++) {
@@ -161,21 +210,22 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        setTransactions((prev) => [...localTxsToInsert, ...prev]);
-
-        try {
-          await supabase.from("transacoes").insert(rowsToInsert);
-          await refetchData();
-        } catch (err) {
-          console.error("Erro ao inserir lote de transações recorrentes:", err);
-        }
+        const ok = await applyOptimistic(
+          "salvar o lançamento recorrente",
+          (prev) => [...localTxsToInsert, ...prev],
+          () => supabase.from("transacoes").insert(rowsToInsert),
+        );
+        if (ok) await refetchData();
+        return ok;
       } else if (tx.frequency.kind === "parcelado" && tx.frequency.total > 1) {
+        // Em compra parcelada, tx.amount é o valor TOTAL da compra: cada parcela recebe a sua fração.
         const grupoParcelaId = crypto.randomUUID();
         const pAtual = tx.frequency.current;
         const totalN = tx.frequency.total;
         const baseDate = new Date(`${tx.date}T12:00:00`);
+        const installmentAmounts = splitInstallments(tx.amount, totalN);
 
-        const rowsToInsert = [];
+        const rowsToInsert: Record<string, unknown>[] = [];
         const localTxsToInsert: Transaction[] = [];
 
         for (let i = 1; i <= totalN; i++) {
@@ -199,7 +249,7 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
             categoria_id: tx.categoryId,
             subcategoria_id: tx.subcategoryId,
             transacao_descricao: tx.description,
-            transacao_valor: tx.amount,
+            transacao_valor: installmentAmounts[i - 1] ?? 0,
             transacao_tipo: tx.type === "receita" ? "Receita" : "Despesa",
             transacao_data_vencimento: formattedDate,
             transacao_status: installmentStatus === "pago" ? "Pago" : "Pendente",
@@ -215,6 +265,7 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
           localTxsToInsert.push({
             ...tx,
             id: newId,
+            amount: installmentAmounts[i - 1] ?? 0,
             date: formattedDate,
             status: installmentStatus,
             parcelaId: grupoParcelaId,
@@ -222,14 +273,13 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
           });
         }
 
-        setTransactions((prev) => [...localTxsToInsert, ...prev]);
-
-        try {
-          await supabase.from("transacoes").insert(rowsToInsert);
-          await refetchData();
-        } catch (err) {
-          console.error("Erro ao inserir lote de parcelas:", err);
-        }
+        const ok = await applyOptimistic(
+          "salvar as parcelas",
+          (prev) => [...localTxsToInsert, ...prev],
+          () => supabase.from("transacoes").insert(rowsToInsert),
+        );
+        if (ok) await refetchData();
+        return ok;
       } else {
         const newId = crypto.randomUUID();
         const grupoParcelaId = isParcelado ? (tx.parcelaId ?? crypto.randomUUID()) : null;
@@ -254,23 +304,20 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
         };
 
         const localTx: Transaction = { ...tx, id: newId, parcelaId: grupoParcelaId ?? undefined };
-        setTransactions((prev) => [localTx, ...prev]);
-
-        try {
-          await supabase.from("transacoes").insert([dbPayload]);
-          await refetchData();
-        } catch (err) {
-          console.error("Erro ao inserir transação:", err);
-        }
+        const ok = await applyOptimistic(
+          "salvar o lançamento",
+          (prev) => [localTx, ...prev],
+          () => supabase.from("transacoes").insert([dbPayload]),
+        );
+        if (ok) await refetchData();
+        return ok;
       }
     },
-    [user, refetchData],
+    [user, refetchData, applyOptimistic],
   );
 
   const updateTransaction = useCallback(
     async (id: string, patch: Partial<Transaction>) => {
-      setTransactions((prev) => prev.map((tx) => (tx.id === id ? { ...tx, ...patch } : tx)));
-
       const dbPatch: Record<string, any> = {};
       if (patch.description !== undefined) dbPatch["transacao_descricao"] = patch.description;
       if (patch.amount !== undefined) dbPatch["transacao_valor"] = patch.amount;
@@ -285,14 +332,21 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
           dbPatch["transacao_frequencia"] = "Parcelado";
           dbPatch["transacao_parcela_atual"] = patch.frequency.current;
           dbPatch["transacao_parcela_total"] = patch.frequency.total;
-          dbPatch["transacao_parcela_id"] = patch.parcelaId ?? crypto.randomUUID();
+          // Mantém o grupo da compra ao editar uma parcela; só cria um novo se ainda não houver.
+          const existingParcelaId = transactionsRef.current.find((t) => t.id === id)?.parcelaId;
+          dbPatch["transacao_parcela_id"] =
+            patch.parcelaId ?? existingParcelaId ?? crypto.randomUUID();
           dbPatch["transacao_recorrencia_id"] = null;
         } else if (patch.frequency.kind === "recorrente") {
           dbPatch["transacao_frequencia"] = "Recorrente";
           dbPatch["transacao_parcela_atual"] = null;
           dbPatch["transacao_parcela_total"] = null;
           dbPatch["transacao_parcela_id"] = null;
-          dbPatch["transacao_recorrencia_id"] = patch.recorrenciaId ?? crypto.randomUUID();
+          const existingRecorrenciaId = transactionsRef.current.find(
+            (t) => t.id === id,
+          )?.recorrenciaId;
+          dbPatch["transacao_recorrencia_id"] =
+            patch.recorrenciaId ?? existingRecorrenciaId ?? crypto.randomUUID();
         } else {
           dbPatch["transacao_frequencia"] = "Pontual";
           dbPatch["transacao_parcela_atual"] = null;
@@ -302,93 +356,99 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      try {
-        await supabase.from("transacoes").update(dbPatch).eq("transacao_id", id);
-        await refetchData();
-      } catch (err) {
-        console.error("Erro ao atualizar transação:", err);
-      }
+      const ok = await applyOptimistic(
+        "atualizar o lançamento",
+        (prev) => prev.map((tx) => (tx.id === id ? { ...tx, ...patch } : tx)),
+        () => supabase.from("transacoes").update(dbPatch).eq("transacao_id", id),
+      );
+      if (ok) await refetchData();
+      return ok;
     },
-    [refetchData],
+    [refetchData, applyOptimistic],
   );
 
   const removeTransaction = useCallback(
     async (id: string) => {
-      setTransactions((prev) => prev.filter((tx) => tx.id !== id));
-      try {
-        await supabase.from("transacoes").delete().eq("transacao_id", id);
-        await refetchData();
-      } catch (err) {
-        console.error("Erro ao deletar transação:", err);
-      }
+      const ok = await applyOptimistic(
+        "excluir o lançamento",
+        (prev) => prev.filter((tx) => tx.id !== id),
+        () => supabase.from("transacoes").delete().eq("transacao_id", id),
+      );
+      if (ok) await refetchData();
+      return ok;
     },
-    [refetchData],
+    [refetchData, applyOptimistic],
   );
 
   const toggleStatus = useCallback(
     async (id: string) => {
-      const current = transactions.find((t) => t.id === id);
-      if (!current) return;
+      const current = transactionsRef.current.find((t) => t.id === id);
+      if (!current) return false;
       const nextStatus = current.status === "pago" ? "pendente" : "pago";
 
-      setTransactions((prev) =>
-        prev.map((tx) => (tx.id === id ? { ...tx, status: nextStatus } : tx)),
+      const ok = await applyOptimistic(
+        "alterar o status",
+        (prev) => prev.map((tx) => (tx.id === id ? { ...tx, status: nextStatus } : tx)),
+        () =>
+          supabase
+            .from("transacoes")
+            .update({ transacao_status: nextStatus === "pago" ? "Pago" : "Pendente" })
+            .eq("transacao_id", id),
       );
-
-      try {
-        await supabase
-          .from("transacoes")
-          .update({ transacao_status: nextStatus === "pago" ? "Pago" : "Pendente" })
-          .eq("transacao_id", id);
-        await refetchData();
-      } catch (err) {
-        console.error("Erro ao alternar status:", err);
-      }
+      if (ok) await refetchData();
+      return ok;
     },
-    [transactions, refetchData],
+    [refetchData, applyOptimistic],
   );
 
   const markReviewed = useCallback(
     async (id: string) => {
-      setTransactions((prev) => prev.map((tx) => (tx.id === id ? { ...tx, revisada: true } : tx)));
-      try {
-        await supabase.from("transacoes").update({ transacao_revisada: true }).eq("transacao_id", id);
-        await refetchData();
-      } catch (err) {
-        console.error("Erro ao marcar transação como revisada:", err);
-      }
+      const ok = await applyOptimistic(
+        "marcar como revisado",
+        (prev) => prev.map((tx) => (tx.id === id ? { ...tx, revisada: true } : tx)),
+        () =>
+          supabase.from("transacoes").update({ transacao_revisada: true }).eq("transacao_id", id),
+      );
+      if (ok) await refetchData();
+      return ok;
     },
-    [refetchData],
+    [refetchData, applyOptimistic],
   );
 
   // Converte um lançamento automático (valor cheio, pontual) em parcelas:
   // cria as N parcelas a partir da data da compra e remove o lançamento original.
+  // O original só é removido se as parcelas foram gravadas — senão a compra se perderia.
   const convertToInstallments = useCallback(
     async (id: string, total: number) => {
-      const original = transactions.find((t) => t.id === id);
-      if (!original || total < 2) return;
+      const original = transactionsRef.current.find((t) => t.id === id);
+      if (!original || total < 2) return false;
       const { id: _id, ...rest } = original;
-      await addTransaction({
+      const created = await addTransaction({
         ...rest,
-        amount: Math.round((original.amount / total) * 100) / 100,
         frequency: { kind: "parcelado", current: 1, total },
         revisada: true,
       });
-      await removeTransaction(id);
+      if (!created) return false;
+      return removeTransaction(id);
     },
-    [transactions, addTransaction, removeTransaction],
+    [addTransaction, removeTransaction],
   );
 
   // Converte um lançamento automático em gasto fixo, projetando os próximos meses.
   const convertToRecurring = useCallback(
     async (id: string) => {
-      const original = transactions.find((t) => t.id === id);
-      if (!original) return;
+      const original = transactionsRef.current.find((t) => t.id === id);
+      if (!original) return false;
       const { id: _id, ...rest } = original;
-      await addTransaction({ ...rest, frequency: { kind: "recorrente" }, revisada: true });
-      await removeTransaction(id);
+      const created = await addTransaction({
+        ...rest,
+        frequency: { kind: "recorrente" },
+        revisada: true,
+      });
+      if (!created) return false;
+      return removeTransaction(id);
     },
-    [transactions, addTransaction, removeTransaction],
+    [addTransaction, removeTransaction],
   );
 
   const setGoal = useCallback(
@@ -400,29 +460,26 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
         (g) => g.categoria_id === categoryId && g.meta_mes === metaMes && g.meta_ano === metaAno,
       );
 
-      try {
-        if (existingGoal) {
-          await supabase
-            .from("metas")
-            .update({ meta_valor: limit })
-            .eq("meta_id", existingGoal.meta_id);
-        } else {
-          const newId = crypto.randomUUID();
-          await supabase.from("metas").insert([
-            {
-              meta_id: newId,
-              user_id: user?.id,
-              categoria_id: categoryId,
-              meta_valor: limit,
-              meta_mes: metaMes,
-              meta_ano: metaAno,
-            },
-          ]);
-        }
-        await refetchData();
-      } catch (err) {
-        console.error("Erro ao salvar meta no Supabase:", err);
-      }
+      const ok = await persist(
+        "salvar a meta",
+        existingGoal
+          ? supabase
+              .from("metas")
+              .update({ meta_valor: limit })
+              .eq("meta_id", existingGoal.meta_id)
+          : supabase.from("metas").insert([
+              {
+                meta_id: crypto.randomUUID(),
+                user_id: user?.id,
+                categoria_id: categoryId,
+                meta_valor: limit,
+                meta_mes: metaMes,
+                meta_ano: metaAno,
+              },
+            ]),
+      );
+      if (ok) await refetchData();
+      return ok;
     },
     [month, year, dbGoals, user, refetchData],
   );
@@ -446,20 +503,6 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
       return periodYear === targetYear && periodMonth === targetMonth1Indexed;
     });
 
-    console.group(`[RiccOS Store] Período Ativo: ${targetMonth1Indexed}/${targetYear} (Mês index: ${month})`);
-    console.log(`📌 Dia de Vencimento (Corte): Dia ${cutoffDay}`);
-    console.log(`📊 Total de Transações no Banco: ${transactions.length}`);
-    console.log(`💳 Transações Puxadas no Mês (${monthTransactions.length}):`, monthTransactions.map(t => ({
-      descricao: t.description,
-      valor: t.amount,
-      tipo: t.type,
-      dataVencimento: t.date,
-      categoria: t.category,
-      status: t.status,
-      periodoCalculado: getTransactionPeriod(t.date, cutoffDay)
-    })));
-    console.groupEnd();
-
     return {
       month,
       year,
@@ -480,9 +523,6 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
       convertToInstallments,
       convertToRecurring,
       setGoal,
-      budgets,
-      setBudget: (category, limit) =>
-        setBudgets((prev) => prev.map((b) => (b.category === category ? { ...b, limit } : b))),
       refetchData,
     };
   }, [
@@ -502,7 +542,6 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
     convertToInstallments,
     convertToRecurring,
     setGoal,
-    budgets,
     refetchData,
   ]);
 

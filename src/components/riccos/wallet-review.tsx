@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, Layers, Pencil, Repeat, Wallet } from "lucide-react";
+import { Check, Layers, Pencil, Repeat, Tag, Wallet } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatBRL, formatDate, type Transaction } from "@/lib/finance-data";
+import { AliasDialog, useMerchantAliases } from "./merchant-aliases";
 import { useRiccos } from "./store";
 
 const INSTALLMENT_OPTIONS = Array.from({ length: 23 }, (_, i) => i + 2); // 2x a 24x
@@ -34,6 +35,8 @@ export function WalletReview({ onEdit }: { onEdit: (tx: Transaction) => void }) 
   const [installmentTarget, setInstallmentTarget] = useState<Transaction | null>(null);
   const [installments, setInstallments] = useState("2");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [aliasTarget, setAliasTarget] = useState<Transaction | null>(null);
+  const { saveAlias } = useMerchantAliases();
 
   const pending = useMemo(
     () =>
@@ -45,7 +48,7 @@ export function WalletReview({ onEdit }: { onEdit: (tx: Transaction) => void }) 
 
   if (pending.length === 0) return null;
 
-  const run = async (id: string, action: () => Promise<void>) => {
+  const run = async (id: string, action: () => Promise<unknown>) => {
     setBusyId(id);
     try {
       await action();
@@ -101,11 +104,16 @@ export function WalletReview({ onEdit }: { onEdit: (tx: Transaction) => void }) 
                     <span className="tabular-nums">{formatDate(tx.date)}</span> · {tx.category}
                     {tx.subcategory ? ` · ${tx.subcategory}` : ""}
                   </p>
+                  {tx.estabelecimentoOriginal && tx.estabelecimentoOriginal !== tx.description && (
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      Na Wallet: {tx.estabelecimentoOriginal}
+                    </p>
+                  )}
                 </div>
                 <span className="hidden shrink-0 text-sm font-semibold tabular-nums sm:block">
                   − {formatBRL(tx.amount)}
                 </span>
-                <div className="mt-3 grid grid-cols-4 gap-1.5 sm:mt-0 sm:flex sm:shrink-0">
+                <div className="mt-3 grid grid-cols-5 gap-1.5 sm:mt-0 sm:flex sm:shrink-0">
                   <Button
                     size="sm"
                     disabled={busy}
@@ -134,6 +142,15 @@ export function WalletReview({ onEdit }: { onEdit: (tx: Transaction) => void }) 
                     title="É um gasto fixo"
                   >
                     <Repeat /> <span className="hidden sm:inline">Fixo</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={busy || !tx.estabelecimentoOriginal}
+                    onClick={() => setAliasTarget(tx)}
+                    title="Apelidar este estabelecimento"
+                  >
+                    <Tag /> <span className="hidden sm:inline">Apelidar</span>
                   </Button>
                   <Button
                     size="sm"
@@ -190,6 +207,13 @@ export function WalletReview({ onEdit }: { onEdit: (tx: Transaction) => void }) 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AliasDialog
+        open={aliasTarget !== null}
+        onOpenChange={(o) => !o && setAliasTarget(null)}
+        fromTx={aliasTarget}
+        onSave={saveAlias}
+      />
     </Card>
   );
 }
