@@ -30,9 +30,9 @@ export const Route = createFileRoute("/login")({
 });
 
 const highlights = [
-  "Lançamentos por comando de voz",
-  "Metas e tetos por categoria",
-  "Relatórios e projeções mensais",
+  "Comando de voz para o dia a dia",
+  "Um módulo para cada área da vida",
+  "No navegador ou como app no celular",
 ];
 
 function LoginPage() {
@@ -113,12 +113,11 @@ function LoginPage() {
         <div className="relative max-w-md">
           <LogoMark className="mb-8 h-24 text-brand-mint drop-shadow-[0_0_30px_rgba(207,255,226,0.35)]" />
           <h2 className="text-4xl font-semibold leading-[1.1] tracking-tight">
-            Seu sistema operacional{" "}
-            <span className="text-gradient animate-shimmer">financeiro.</span>
+            Seu assistente <span className="text-gradient animate-shimmer">pessoal.</span>
           </h2>
           <p className="mt-4 text-base leading-relaxed text-brand-snow/65">
-            Controle entradas, saídas, tetos de gastos e projeções em um único painel — com
-            lançamentos por voz.
+            Fale, registre, acompanhe. O RiccOS organiza o que importa em um painel só — e cresce
+            junto com a sua rotina.
           </p>
           <ul className="mt-8 space-y-3">
             {highlights.map((item) => (
@@ -153,9 +152,7 @@ function LoginPage() {
             <LogoTile tone="dark" className="size-16 rounded-[22px]" />
             <div>
               <Wordmark className="text-2xl" />
-              <p className="mt-1 text-sm text-muted-foreground">
-                Seu sistema operacional financeiro
-              </p>
+              <p className="mt-1 text-sm text-muted-foreground">Seu assistente pessoal</p>
             </div>
           </div>
 
@@ -247,7 +244,7 @@ function LoginPage() {
           </div>
 
           <p className="mt-6 text-center text-[11px] text-muted-foreground">
-            RiccOS · Painel de gestão pessoal
+            RiccOS · Assistente pessoal
           </p>
         </div>
       </main>

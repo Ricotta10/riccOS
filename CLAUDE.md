@@ -154,6 +154,10 @@ Definido em `src/styles.css` (tokens) e nos componentes de `src/components/ui` e
 - **Central de Comando (`/`) é o assistente geral do Rodrigo**, não uma tela financeira:
   nenhum texto, regra ou atalho específico de finanças nela (o financeiro é só o primeiro módulo).
   Manter a tela limpa: saudação, núcleo de voz, estado da gravação e o `ScoreBadge` discreto.
+- **O RiccOS se apresenta como assistente pessoal, não como app financeiro.** Vale para a
+  Central de Comando e também para o **login** (`login.tsx`) e qualquer texto de marca:
+  headline, destaques e rodapé falam do assistente e dos módulos, nunca de entradas, saídas,
+  metas ou relatórios.
 - **Componentes compartilhados obrigatórios:** `PageHeader` (título de página),
   `StatCard` (KPIs), `Badge` com variantes `success|warning|destructive`, `Button`
   (variantes `default|outline|secondary|ghost|glow`, tamanhos `sm|default|lg|icon|icon-sm`).
