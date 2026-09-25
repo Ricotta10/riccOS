@@ -197,6 +197,8 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
             transacao_parcela_total: null,
             transacao_parcela_id: null,
             transacao_origem: tx.origem ?? "manual",
+            transacao_estabelecimento_original: tx.estabelecimentoOriginal ?? null,
+            transacao_chave_externa: i === 0 ? (tx.chaveExterna ?? null) : null,
           });
 
           localTxsToInsert.push({
@@ -260,6 +262,8 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
             transacao_recorrencia_id: null,
             transacao_data_fim: null,
             transacao_origem: tx.origem ?? "manual",
+            transacao_estabelecimento_original: tx.estabelecimentoOriginal ?? null,
+            transacao_chave_externa: i === pAtual ? (tx.chaveExterna ?? null) : null,
           });
 
           localTxsToInsert.push({
@@ -301,6 +305,8 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
           transacao_recorrencia_id: null,
           transacao_data_fim: null,
           transacao_origem: tx.origem ?? "manual",
+          transacao_estabelecimento_original: tx.estabelecimentoOriginal ?? null,
+          transacao_chave_externa: tx.chaveExterna ?? null,
         };
 
         const localTx: Transaction = { ...tx, id: newId, parcelaId: grupoParcelaId ?? undefined };
@@ -415,40 +421,47 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
     [refetchData, applyOptimistic],
   );
 
-  // Converte um lançamento automático (valor cheio, pontual) em parcelas:
-  // cria as N parcelas a partir da data da compra e remove o lançamento original.
-  // O original só é removido se as parcelas foram gravadas — senão a compra se perderia.
-  const convertToInstallments = useCallback(
-    async (id: string, total: number) => {
+  // Recria um lançamento automático em outro formato (parcelas ou fixo) e remove o original.
+  // O nome original da Wallet e a chave de dedupe vão para a nova linha "atual"; como a chave é
+  // única, ela sai do original antes do insert e volta para ele se o insert falhar.
+  // O original só é removido se as novas linhas foram gravadas — senão a compra se perderia.
+  const replaceTransaction = useCallback(
+    async (id: string, frequency: Transaction["frequency"]) => {
       const original = transactionsRef.current.find((t) => t.id === id);
-      if (!original || total < 2) return false;
+      if (!original) return false;
       const { id: _id, ...rest } = original;
-      const created = await addTransaction({
-        ...rest,
-        frequency: { kind: "parcelado", current: 1, total },
-        revisada: true,
-      });
-      if (!created) return false;
+      const chave = original.chaveExterna;
+
+      const setChave = async (value: string | null) => {
+        const { error } = await supabase
+          .from("transacoes")
+          .update({ transacao_chave_externa: value })
+          .eq("transacao_id", id);
+        if (error) console.error("Erro ao mover a chave externa:", error);
+        return !error;
+      };
+
+      if (chave && !(await setChave(null))) return false;
+      const created = await addTransaction({ ...rest, frequency, revisada: true });
+      if (!created) {
+        if (chave) await setChave(chave);
+        return false;
+      }
       return removeTransaction(id);
     },
     [addTransaction, removeTransaction],
   );
 
+  const convertToInstallments = useCallback(
+    async (id: string, total: number) =>
+      total >= 2 && replaceTransaction(id, { kind: "parcelado", current: 1, total }),
+    [replaceTransaction],
+  );
+
   // Converte um lançamento automático em gasto fixo, projetando os próximos meses.
   const convertToRecurring = useCallback(
-    async (id: string) => {
-      const original = transactionsRef.current.find((t) => t.id === id);
-      if (!original) return false;
-      const { id: _id, ...rest } = original;
-      const created = await addTransaction({
-        ...rest,
-        frequency: { kind: "recorrente" },
-        revisada: true,
-      });
-      if (!created) return false;
-      return removeTransaction(id);
-    },
-    [addTransaction, removeTransaction],
+    async (id: string) => replaceTransaction(id, { kind: "recorrente" }),
+    [replaceTransaction],
   );
 
   const setGoal = useCallback(

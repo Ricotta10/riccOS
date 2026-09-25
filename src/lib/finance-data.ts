@@ -58,6 +58,7 @@ export interface DbTransaction {
   transacao_origem?: string | null;
   transacao_revisada?: boolean | null;
   transacao_estabelecimento_original?: string | null;
+  transacao_chave_externa?: string | null;
   criado_em?: string;
 }
 
@@ -106,6 +107,8 @@ export type Transaction = {
   revisada?: boolean | undefined;
   /** Nome cru do estabelecimento como veio da Wallet (antes de apelido/IA). */
   estabelecimentoOriginal?: string | undefined;
+  /** Chave de deduplicação dos lançamentos automáticos (única por usuário). */
+  chaveExterna?: string | undefined;
 };
 
 export type TxOrigem = "manual" | "voz" | "wallet";
@@ -163,6 +166,7 @@ export function mapDbTransactionToTransaction(
     origem: (dbTx.transacao_origem as TxOrigem | null) ?? "manual",
     revisada: dbTx.transacao_revisada ?? true,
     estabelecimentoOriginal: dbTx.transacao_estabelecimento_original ?? undefined,
+    chaveExterna: dbTx.transacao_chave_externa ?? undefined,
   };
 }
 

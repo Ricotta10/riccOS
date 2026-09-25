@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatBRL, formatDate, type Transaction } from "@/lib/finance-data";
+import { formatBRL, formatDate, splitInstallments, type Transaction } from "@/lib/finance-data";
 import { AliasDialog, useMerchantAliases } from "./merchant-aliases";
 import { useRiccos } from "./store";
 
@@ -36,6 +36,7 @@ export function WalletReview({ onEdit }: { onEdit: (tx: Transaction) => void }) 
   const [installments, setInstallments] = useState("2");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [aliasTarget, setAliasTarget] = useState<Transaction | null>(null);
+  const [recurringTarget, setRecurringTarget] = useState<Transaction | null>(null);
   const { saveAlias } = useMerchantAliases();
 
   const pending = useMemo(
@@ -64,7 +65,17 @@ export function WalletReview({ onEdit }: { onEdit: (tx: Transaction) => void }) 
     await run(target.id, () => convertToInstallments(target.id, Number(installments)));
   };
 
+  const confirmRecurring = async () => {
+    if (!recurringTarget) return;
+    const target = recurringTarget;
+    setRecurringTarget(null);
+    await run(target.id, () => convertToRecurring(target.id));
+  };
+
   const total = Number(installments);
+  const parts = splitInstallments(installmentTarget?.amount ?? 0, total);
+  const minPart = parts[parts.length - 1] ?? 0;
+  const maxPart = parts[0] ?? 0;
 
   return (
     <Card>
@@ -138,7 +149,7 @@ export function WalletReview({ onEdit }: { onEdit: (tx: Transaction) => void }) 
                     size="sm"
                     variant="secondary"
                     disabled={busy}
-                    onClick={() => run(tx.id, () => convertToRecurring(tx.id))}
+                    onClick={() => setRecurringTarget(tx)}
                     title="É um gasto fixo"
                   >
                     <Repeat /> <span className="hidden sm:inline">Fixo</span>
@@ -195,15 +206,45 @@ export function WalletReview({ onEdit }: { onEdit: (tx: Transaction) => void }) 
           <p className="text-xs text-muted-foreground">
             Vão entrar {total} parcelas de{" "}
             <span className="font-semibold text-foreground tabular-nums">
-              {formatBRL(Math.round(((installmentTarget?.amount ?? 0) / total) * 100) / 100)}
+              {minPart === maxPart
+                ? formatBRL(maxPart)
+                : `${formatBRL(minPart)} a ${formatBRL(maxPart)}`}
             </span>
-            , uma por mês a partir da data da compra.
+            , uma por mês a partir da data da compra, no lugar deste lançamento.
           </p>
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setInstallmentTarget(null)}>
               Cancelar
             </Button>
             <Button onClick={confirmInstallments}>Parcelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={recurringTarget !== null}
+        onOpenChange={(o) => !o && setRecurringTarget(null)}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Transformar em gasto fixo?</DialogTitle>
+            <DialogDescription>
+              {recurringTarget?.description} ·{" "}
+              <span className="tabular-nums">{formatBRL(recurringTarget?.amount ?? 0)}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            Vai se repetir todo mês: serão criados 12 lançamentos a partir de{" "}
+            <span className="font-semibold text-foreground tabular-nums">
+              {recurringTarget ? formatDate(recurringTarget.date) : ""}
+            </span>
+            , no lugar deste.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setRecurringTarget(null)}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmRecurring}>Transformar em fixo</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
