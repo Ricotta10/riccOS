@@ -17,6 +17,7 @@ import { AuthProvider, useAuth } from "../lib/auth";
 import { AppShell } from "../components/riccos/app-shell";
 import { LogoMark, LogoTile } from "../components/riccos/brand";
 import { RiccosProvider } from "../components/riccos/store";
+import { AlimentacaoProvider } from "../components/riccos/alimentacao-store";
 import { GamificationProvider } from "../components/riccos/gamification";
 import { ThemeProvider, THEME_BOOT_SCRIPT } from "../components/riccos/theme";
 import { Button } from "../components/ui/button";
@@ -124,16 +125,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content:
           "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
       },
-      { title: "RiccOS — Gestão financeira pessoal" },
+      { title: "RiccOS — Assistente pessoal" },
       {
         name: "description",
         content:
-          "RiccOS: dashboard de gestão financeira pessoal com lançamentos, metas de gastos e relatórios.",
+          "RiccOS: assistente pessoal do Rodrigo, com módulos de finanças, alimentação e missões.",
       },
-      { property: "og:title", content: "RiccOS — Gestão financeira pessoal" },
+      { property: "og:title", content: "RiccOS — Assistente pessoal" },
       {
         property: "og:description",
-        content: "Controle entradas, saídas, tetos de gastos e projeções em um único painel.",
+        content:
+          "Seu assistente pessoal: comando de voz, módulos da rotina e um placar de missões.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -237,10 +239,12 @@ function RootComponent() {
       <ThemeProvider>
         <AuthProvider>
           <RiccosProvider>
-            <GamificationProvider>
-              <AuthenticatedContent />
-              <Toaster richColors closeButton />
-            </GamificationProvider>
+            <AlimentacaoProvider>
+              <GamificationProvider>
+                <AuthenticatedContent />
+                <Toaster richColors closeButton />
+              </GamificationProvider>
+            </AlimentacaoProvider>
           </RiccosProvider>
         </AuthProvider>
       </ThemeProvider>

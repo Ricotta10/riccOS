@@ -11,6 +11,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { getTransactionPeriod, type Transaction } from "@/lib/finance-data";
 import {
+  computeAlimentacaoMissions,
   computeAutoMissions,
   isPeriodCurrent,
   isPeriodOver,
@@ -26,6 +27,7 @@ import {
   type SeasonSummary,
 } from "@/lib/gamification";
 import { supabase } from "@/lib/supabase";
+import { useAlimentacao } from "./alimentacao-store";
 import { useRiccos } from "./store";
 
 export type SeasonCloseResult = {
@@ -67,6 +69,7 @@ const GamificationContext = createContext<Gamification | null>(null);
 export function GamificationProvider({ children }: { children: ReactNode }) {
   const { user, profile } = useAuth();
   const { month, year, transactions, monthTransactions, dbCategories, dbGoals } = useRiccos();
+  const { refeicoes, protocolos, medidas } = useAlimentacao();
 
   const [missoes, setMissoes] = useState<DbMissao[]>([]);
   const [temporadas, setTemporadas] = useState<DbTemporada[]>([]);
@@ -113,8 +116,8 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
   }, [transactions, month1, year, cutoffDay]);
 
   const autoMissions = useMemo(
-    () =>
-      computeAutoMissions({
+    () => [
+      ...computeAutoMissions({
         month1,
         year,
         cutoffDay,
@@ -123,7 +126,20 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
         categories: dbCategories,
         goals: dbGoals,
       }),
-    [month1, year, cutoffDay, monthTransactions, previousMonthTransactions, dbCategories, dbGoals],
+      ...computeAlimentacaoMissions({ month1, year, cutoffDay, refeicoes, protocolos, medidas }),
+    ],
+    [
+      month1,
+      year,
+      cutoffDay,
+      monthTransactions,
+      previousMonthTransactions,
+      dbCategories,
+      dbGoals,
+      refeicoes,
+      protocolos,
+      medidas,
+    ],
   );
 
   const manualMissions = useMemo(
@@ -324,7 +340,15 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
         categories: dbCategories,
         goals: dbGoals,
       });
-      const all = [...auto, ...mapManualMissions(missoes, p.month1, p.year)];
+      const alim = computeAlimentacaoMissions({
+        month1: p.month1,
+        year: p.year,
+        cutoffDay,
+        refeicoes,
+        protocolos,
+        medidas,
+      });
+      const all = [...auto, ...alim, ...mapManualMissions(missoes, p.month1, p.year)];
       const s = summarizeSeason(all);
       return {
         user_id: user.id,
@@ -344,7 +368,18 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
     const inserted = (data as DbTemporada[]) ?? [];
     setTemporadas((prev) => [...prev, ...inserted]);
     return inserted.length;
-  }, [user, pastOpenPeriods, cutoffDay, periodTransactions, dbCategories, dbGoals, missoes]);
+  }, [
+    user,
+    pastOpenPeriods,
+    cutoffDay,
+    periodTransactions,
+    dbCategories,
+    dbGoals,
+    missoes,
+    refeicoes,
+    protocolos,
+    medidas,
+  ]);
 
   const value = useMemo<Gamification>(
     () => ({

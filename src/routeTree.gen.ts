@@ -17,6 +17,10 @@ import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as RiccosRouteImport } from './routes/riccos'
 import { Route as TransacoesRouteImport } from './routes/transacoes'
 import { Route as VisaoGeralRouteImport } from './routes/visao-geral'
+import { Route as AlimentacaoIndexRouteImport } from './routes/alimentacao/index'
+import { Route as AlimentacaoCorpoRouteImport } from './routes/alimentacao/corpo'
+import { Route as AlimentacaoProtocoloRouteImport } from './routes/alimentacao/protocolo'
+import { Route as AlimentacaoRelatoriosRouteImport } from './routes/alimentacao/relatorios'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -58,6 +62,26 @@ const VisaoGeralRoute = VisaoGeralRouteImport.update({
   path: '/visao-geral',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AlimentacaoIndexRoute = AlimentacaoIndexRouteImport.update({
+  id: '/alimentacao/',
+  path: '/alimentacao/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlimentacaoCorpoRoute = AlimentacaoCorpoRouteImport.update({
+  id: '/alimentacao/corpo',
+  path: '/alimentacao/corpo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlimentacaoProtocoloRoute = AlimentacaoProtocoloRouteImport.update({
+  id: '/alimentacao/protocolo',
+  path: '/alimentacao/protocolo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlimentacaoRelatoriosRoute = AlimentacaoRelatoriosRouteImport.update({
+  id: '/alimentacao/relatorios',
+  path: '/alimentacao/relatorios',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +92,10 @@ export interface FileRoutesByFullPath {
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
   '/visao-geral': typeof VisaoGeralRoute
+  '/alimentacao/corpo': typeof AlimentacaoCorpoRoute
+  '/alimentacao/protocolo': typeof AlimentacaoProtocoloRoute
+  '/alimentacao/relatorios': typeof AlimentacaoRelatoriosRoute
+  '/alimentacao/': typeof AlimentacaoIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +106,10 @@ export interface FileRoutesByTo {
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
   '/visao-geral': typeof VisaoGeralRoute
+  '/alimentacao/corpo': typeof AlimentacaoCorpoRoute
+  '/alimentacao/protocolo': typeof AlimentacaoProtocoloRoute
+  '/alimentacao/relatorios': typeof AlimentacaoRelatoriosRoute
+  '/alimentacao': typeof AlimentacaoIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +121,10 @@ export interface FileRoutesById {
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
   '/visao-geral': typeof VisaoGeralRoute
+  '/alimentacao/corpo': typeof AlimentacaoCorpoRoute
+  '/alimentacao/protocolo': typeof AlimentacaoProtocoloRoute
+  '/alimentacao/relatorios': typeof AlimentacaoRelatoriosRoute
+  '/alimentacao/': typeof AlimentacaoIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +137,10 @@ export interface FileRouteTypes {
     | '/riccos'
     | '/transacoes'
     | '/visao-geral'
+    | '/alimentacao/corpo'
+    | '/alimentacao/protocolo'
+    | '/alimentacao/relatorios'
+    | '/alimentacao/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +151,10 @@ export interface FileRouteTypes {
     | '/riccos'
     | '/transacoes'
     | '/visao-geral'
+    | '/alimentacao/corpo'
+    | '/alimentacao/protocolo'
+    | '/alimentacao/relatorios'
+    | '/alimentacao'
   id:
     | '__root__'
     | '/'
@@ -121,6 +165,10 @@ export interface FileRouteTypes {
     | '/riccos'
     | '/transacoes'
     | '/visao-geral'
+    | '/alimentacao/corpo'
+    | '/alimentacao/protocolo'
+    | '/alimentacao/relatorios'
+    | '/alimentacao/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -132,6 +180,10 @@ export interface RootRouteChildren {
   RiccosRoute: typeof RiccosRoute
   TransacoesRoute: typeof TransacoesRoute
   VisaoGeralRoute: typeof VisaoGeralRoute
+  AlimentacaoCorpoRoute: typeof AlimentacaoCorpoRoute
+  AlimentacaoProtocoloRoute: typeof AlimentacaoProtocoloRoute
+  AlimentacaoRelatoriosRoute: typeof AlimentacaoRelatoriosRoute
+  AlimentacaoIndexRoute: typeof AlimentacaoIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -192,6 +244,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VisaoGeralRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/alimentacao/': {
+      id: '/alimentacao/'
+      path: '/alimentacao'
+      fullPath: '/alimentacao/'
+      preLoaderRoute: typeof AlimentacaoIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alimentacao/corpo': {
+      id: '/alimentacao/corpo'
+      path: '/alimentacao/corpo'
+      fullPath: '/alimentacao/corpo'
+      preLoaderRoute: typeof AlimentacaoCorpoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alimentacao/protocolo': {
+      id: '/alimentacao/protocolo'
+      path: '/alimentacao/protocolo'
+      fullPath: '/alimentacao/protocolo'
+      preLoaderRoute: typeof AlimentacaoProtocoloRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alimentacao/relatorios': {
+      id: '/alimentacao/relatorios'
+      path: '/alimentacao/relatorios'
+      fullPath: '/alimentacao/relatorios'
+      preLoaderRoute: typeof AlimentacaoRelatoriosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -204,6 +284,10 @@ const rootRouteChildren: RootRouteChildren = {
   RiccosRoute: RiccosRoute,
   TransacoesRoute: TransacoesRoute,
   VisaoGeralRoute: VisaoGeralRoute,
+  AlimentacaoCorpoRoute: AlimentacaoCorpoRoute,
+  AlimentacaoProtocoloRoute: AlimentacaoProtocoloRoute,
+  AlimentacaoRelatoriosRoute: AlimentacaoRelatoriosRoute,
+  AlimentacaoIndexRoute: AlimentacaoIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,12 +1,24 @@
 import {
+  computeDailyStats,
+  dateRange,
+  localDateKey,
+  metasDoProtocolo,
+  summarizeDays,
+  type DbMedida,
+  type DbProtocolo,
+  type DbRefeicao,
+} from "./alimentacao";
+import {
   getTransactionPeriod,
   type DbCategory,
   type DbGoal,
   type Transaction,
 } from "./finance-data";
+import { periodBounds } from "./month-pace";
 
 /* ============================================================
- * RiccOS · Minigame financeiro — regras e cálculos (puros)
+ * RiccOS · Minigame ("Missões") — regras e cálculos (puros)
+ * Missões automáticas de cada módulo (Financeiro, Alimentação) somam na mesma temporada.
  * ============================================================ */
 
 export type Faixa = "nenhuma" | "bronze" | "prata" | "ouro";
@@ -328,6 +340,225 @@ export function computeAutoMissions(input: AutoMissionInput): Mission[] {
       status: within ? "concluida" : "falhou",
       progresso: pct(spent, limit),
       detalhe: `${spent.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} de ${limit.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}`,
+    });
+  }
+
+  return missions;
+}
+
+/* ---------- Missões automáticas: Alimentação ---------- */
+
+export const ALIM_POINTS = {
+  proteina: 100,
+  registro: 60,
+  foraDoPlano: 80,
+  calorias: 60,
+  puladas: 60,
+  pesagens: 30,
+} as const;
+
+export const ALIM_TARGETS = {
+  diasProteina: 20,
+  diasRegistro: 25,
+  maxForaDoPlano: 4,
+  maxPuladas: 3,
+  pesagens: 4,
+  /** Missões de "no máximo X" só valem com registro em pelo menos esses dias (evita ganhar sem registrar). */
+  diasMinimosParaLimites: 15,
+} as const;
+
+/** Prefixo dos ids das missões de alimentação (a UI agrupa por ele). */
+export const ALIM_MISSION_PREFIX = "auto-alim-";
+
+export interface AlimentacaoMissionInput {
+  month1: number;
+  year: number;
+  cutoffDay: number;
+  refeicoes: DbRefeicao[];
+  protocolos: DbProtocolo[];
+  medidas: DbMedida[];
+  today?: Date;
+}
+
+/**
+ * Missões de alimentação do período. Só existem quando há um protocolo que valeu no período
+ * (as metas de proteína/calorias e o mínimo de refeições vêm dele).
+ */
+export function computeAlimentacaoMissions(input: AlimentacaoMissionInput): Mission[] {
+  const { month1, year, cutoffDay, refeicoes, protocolos, medidas, today = new Date() } = input;
+  const { start, end } = periodBounds(month1, year, cutoffDay);
+  const startKey = localDateKey(start);
+  const endKey = localDateKey(end);
+  const todayKey = localDateKey(today);
+
+  const protocolo = protocolos
+    .filter(
+      (p) =>
+        (p.protocolo_status === "ativo" || p.protocolo_status === "substituido") &&
+        !!p.protocolo_inicio &&
+        p.protocolo_inicio <= endKey &&
+        (p.protocolo_fim ?? "9999-12-31") >= startKey,
+    )
+    .sort((a, b) => (b.protocolo_inicio ?? "").localeCompare(a.protocolo_inicio ?? ""))[0];
+  if (!protocolo) return [];
+
+  const metas = metasDoProtocolo(protocolo);
+  const refeicoesMin = protocolo.protocolo_refeicoes_min ?? 3;
+  const over = isPeriodOver(month1, year, cutoffDay, today);
+  const lastKey = endKey < todayKey ? endKey : todayKey;
+  const days = startKey <= lastKey ? dateRange(startKey, lastKey) : [];
+  const totalDays = dateRange(startKey, endKey).length;
+  const futureDays = totalDays - days.length;
+  const stats = computeDailyStats(refeicoes, days, metas, refeicoesMin, todayKey);
+  const s = summarizeDays(stats, refeicoes);
+  const hoje = stats.find((d) => d.date === todayKey);
+
+  /** Missão de "chegar a N dias": falha cedo quando não dá mais para alcançar. */
+  const countMission = (
+    id: string,
+    titulo: string,
+    descricao: string,
+    pontos: number,
+    n: number,
+    target: number,
+    todayDone: boolean,
+    unidade: string,
+  ): Mission => {
+    const alvo = Math.min(target, totalDays);
+    const possivel = n + futureDays + (hoje && !todayDone ? 1 : 0);
+    const status: MissionStatus =
+      n >= alvo ? "concluida" : over || possivel < alvo ? "falhou" : "em_andamento";
+    return {
+      id,
+      kind: "auto",
+      titulo,
+      descricao,
+      pontos,
+      status,
+      progresso: pct(n, alvo),
+      detalhe: `${n}/${alvo} ${unidade}`,
+    };
+  };
+
+  /** Missão de "no máximo N": vale só com registros suficientes. */
+  const limitMission = (
+    id: string,
+    titulo: string,
+    descricao: string,
+    pontos: number,
+    n: number,
+    max: number,
+    unidade: string,
+  ): Mission => {
+    const poucos = s.diasComRegistro < ALIM_TARGETS.diasMinimosParaLimites;
+    let status: MissionStatus;
+    if (n > max) status = "falhou";
+    else if (over) status = poucos ? "falhou" : "concluida";
+    else status = poucos ? "em_andamento" : "concluida";
+    return {
+      id,
+      kind: "auto",
+      titulo,
+      descricao,
+      pontos,
+      status,
+      progresso: pct(n, max || 1),
+      detalhe:
+        poucos && n <= max
+          ? `${n}/${max} ${unidade} · registre ${ALIM_TARGETS.diasMinimosParaLimites}+ dias`
+          : `${n}/${max} ${unidade}`,
+    };
+  };
+
+  const missions: Mission[] = [];
+
+  if (metas && metas.proteina_g > 0) {
+    missions.push(
+      countMission(
+        `${ALIM_MISSION_PREFIX}proteina`,
+        `Bater a proteína em ${ALIM_TARGETS.diasProteina} dias`,
+        `Pelo menos 90% da meta de ${metas.proteina_g} g no dia.`,
+        ALIM_POINTS.proteina,
+        s.diasProteina,
+        ALIM_TARGETS.diasProteina,
+        !!hoje?.bateuProteina,
+        "dias",
+      ),
+    );
+  }
+
+  missions.push(
+    countMission(
+      `${ALIM_MISSION_PREFIX}registro`,
+      `Registrar a alimentação em ${ALIM_TARGETS.diasRegistro} dias`,
+      "Constância de registro: pelo menos uma refeição registrada no dia.",
+      ALIM_POINTS.registro,
+      s.diasComRegistro,
+      ALIM_TARGETS.diasRegistro,
+      !!hoje && hoje.registros > 0,
+      "dias",
+    ),
+  );
+
+  missions.push(
+    limitMission(
+      `${ALIM_MISSION_PREFIX}fora-do-plano`,
+      `No máximo ${ALIM_TARGETS.maxForaDoPlano} refeições fora do plano`,
+      "Refeições classificadas como fora do plano no período.",
+      ALIM_POINTS.foraDoPlano,
+      s.qualidade.ruim,
+      ALIM_TARGETS.maxForaDoPlano,
+      "fora do plano",
+    ),
+  );
+
+  missions.push(
+    limitMission(
+      `${ALIM_MISSION_PREFIX}puladas`,
+      `No máximo ${ALIM_TARGETS.maxPuladas} refeições puladas`,
+      `Dias com menos de ${refeicoesMin} refeições (só dias com registro e já encerrados).`,
+      ALIM_POINTS.puladas,
+      s.refeicoesPuladas,
+      ALIM_TARGETS.maxPuladas,
+      "puladas",
+    ),
+  );
+
+  if (metas && metas.kcal > 0) {
+    const dentro = s.diasComRegistro > 0 && Math.abs(s.mediaKcal - metas.kcal) <= metas.kcal * 0.1;
+    const poucos = s.diasComRegistro < ALIM_TARGETS.diasMinimosParaLimites;
+    missions.push({
+      id: `${ALIM_MISSION_PREFIX}calorias`,
+      kind: "auto",
+      titulo: "Calorias na faixa do protocolo",
+      descricao: `Média diária até 10% acima ou abaixo de ${metas.kcal.toLocaleString("pt-BR")} kcal.`,
+      pontos: ALIM_POINTS.calorias,
+      status: dentro && !poucos ? "concluida" : over ? "falhou" : "em_andamento",
+      progresso: pct(s.mediaKcal, metas.kcal),
+      detalhe:
+        s.diasComRegistro > 0
+          ? `média ${s.mediaKcal.toLocaleString("pt-BR")} kcal`
+          : "Sem registros",
+    });
+  }
+
+  {
+    const pesagens = new Set(
+      medidas
+        .filter(
+          (m) => m.medida_peso_kg != null && m.medida_data >= startKey && m.medida_data <= endKey,
+        )
+        .map((m) => m.medida_data),
+    ).size;
+    missions.push({
+      id: `${ALIM_MISSION_PREFIX}pesagens`,
+      kind: "auto",
+      titulo: `Pesar-se ${ALIM_TARGETS.pesagens} vezes`,
+      descricao: "Registro de peso no Corpo (uma por dia conta).",
+      pontos: ALIM_POINTS.pesagens,
+      status: pesagens >= ALIM_TARGETS.pesagens ? "concluida" : over ? "falhou" : "em_andamento",
+      progresso: pct(pesagens, ALIM_TARGETS.pesagens),
+      detalhe: `${pesagens}/${ALIM_TARGETS.pesagens} pesagens`,
     });
   }
 

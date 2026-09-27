@@ -10,10 +10,17 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ClipboardList,
   LayoutGrid,
   LogOut,
+  Menu,
+  NotebookPen,
+  Ruler,
+  Salad,
   Target,
   Trophy,
+  Wallet,
+  type LucideIcon,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -58,18 +65,57 @@ import { IosInstallPrompt } from "./ios-install-prompt";
 import { useRiccos } from "./store";
 import { ThemeToggle } from "./theme";
 
-const centralItems = [{ title: "Comando de voz", url: "/", icon: AudioLines }];
+type NavItemDef = { title: string; url: string; icon: LucideIcon };
 
-const financialItems = [
+const centralItems: NavItemDef[] = [{ title: "Comando de voz", url: "/", icon: AudioLines }];
+
+const financialItems: NavItemDef[] = [
   { title: "Visão Geral", url: "/visao-geral", icon: LayoutGrid },
   { title: "Transações", url: "/transacoes", icon: ArrowLeftRight },
   { title: "Metas", url: "/metas", icon: Target },
-  { title: "Missões", url: "/missoes", icon: Trophy },
   { title: "Relatórios", url: "/relatorios", icon: BarChart3 },
 ];
 
-/** Itens da bottom nav mobile (Relatórios fica no menu lateral) */
-const mobileNavItems = financialItems.filter((i) => i.url !== "/relatorios");
+const alimentacaoItems: NavItemDef[] = [
+  { title: "Diário", url: "/alimentacao", icon: NotebookPen },
+  { title: "Relatórios", url: "/alimentacao/relatorios", icon: BarChart3 },
+  { title: "Corpo", url: "/alimentacao/corpo", icon: Ruler },
+  { title: "Protocolo", url: "/alimentacao/protocolo", icon: ClipboardList },
+];
+
+const progressItems: NavItemDef[] = [{ title: "Missões", url: "/missoes", icon: Trophy }];
+
+/**
+ * Módulos da vida do Rodrigo. Cada um é um item da bottom nav mobile (leva à `home`) e,
+ * dentro dele, as páginas aparecem como abas no topo (`ModuleTabs`).
+ */
+const modules: {
+  key: string;
+  title: string;
+  icon: LucideIcon;
+  home: string;
+  items: NavItemDef[];
+}[] = [
+  {
+    key: "financeiro",
+    title: "Financeiro",
+    icon: Wallet,
+    home: "/visao-geral",
+    items: financialItems,
+  },
+  {
+    key: "alimentacao",
+    title: "Alimentação",
+    icon: Salad,
+    home: "/alimentacao",
+    items: alimentacaoItems,
+  },
+];
+
+function moduleForPath(path: string) {
+  const clean = path.length > 1 ? path.replace(/\/+$/, "") : path;
+  return modules.find((m) => m.items.some((i) => i.url === clean));
+}
 
 function getInitials(name?: string) {
   if (!name) return "R";
@@ -121,7 +167,7 @@ function SidebarBrandHeader({ onNavigate }: { onNavigate: () => void }) {
           <div className="flex min-w-0 flex-col">
             <Wordmark className="text-lg text-brand-snow" />
             <span className="text-[10px] font-medium uppercase tracking-[0.2em] text-sidebar-foreground/60">
-              Gestão pessoal
+              Assistente pessoal
             </span>
           </div>
         </Link>
@@ -170,7 +216,7 @@ export function AppSidebar() {
   const isActive = (url: string) =>
     currentPath === url || (url === "/" && currentPath === "/riccos");
 
-  const renderItems = (items: typeof financialItems) =>
+  const renderItems = (items: NavItemDef[]) =>
     items.map((item) => (
       <SidebarMenuItem key={item.title}>
         <SidebarMenuButton
@@ -201,10 +247,19 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
+          {modules.map((m) => (
+            <SidebarGroup key={m.key}>
+              <SidebarGroupLabel>{m.title}</SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu className="gap-1">{renderItems(m.items)}</SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
+
           <SidebarGroup>
-            <SidebarGroupLabel>Financeiro</SidebarGroupLabel>
+            <SidebarGroupLabel>Progresso</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="gap-1">{renderItems(financialItems)}</SidebarMenu>
+              <SidebarMenu className="gap-1">{renderItems(progressItems)}</SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
@@ -248,51 +303,11 @@ export function AppSidebar() {
 
 export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) {
   const { month, year, nextMonth, prevMonth, monthTransactions } = useRiccos();
-  const { profile, user, updateDiaVencimento } = useAuth();
+  const { profile, updateDiaVencimento } = useAuth();
   const { balanco } = summarize(monthTransactions);
   const positive = balanco >= 0;
 
   const currentCutoff = profile?.dia_vencimento ?? 3;
-
-  const [pushState, setPushState] = useState<PushState>("no-window");
-  const [pushLoading, setPushLoading] = useState(false);
-
-  useEffect(() => {
-    getPushSubscriptionState()
-      .then(setPushState)
-      .catch((err) => {
-        console.error("[push] erro ao checar estado da inscrição:", err);
-        toast.error(
-          err instanceof Error
-            ? `Erro ao checar notificações: ${err.message}`
-            : "Erro ao checar notificações push.",
-        );
-      });
-  }, []);
-
-  const handlePushToggle = async (checked: boolean) => {
-    const userId = profile?.user_id ?? user?.id;
-    if (!userId) return;
-
-    setPushLoading(true);
-    try {
-      if (checked) {
-        await subscribeToPush(userId);
-        setPushState("subscribed");
-        toast.success("Notificações push ativadas.");
-      } else {
-        await unsubscribeFromPush();
-        setPushState("unsubscribed");
-        toast.success("Notificações push desativadas.");
-      }
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Não foi possível atualizar as notificações.",
-      );
-    } finally {
-      setPushLoading(false);
-    }
-  };
 
   return (
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
@@ -360,57 +375,7 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
         </PopoverContent>
       </Popover>
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            size="icon"
-            className="size-11 shrink-0 sm:size-10"
-            title="Notificações push"
-            aria-label="Notificações push"
-          >
-            {pushState === "subscribed" ? (
-              <Bell className="text-primary" />
-            ) : (
-              <BellOff className="text-muted-foreground" />
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-64" align="end">
-          <div className="space-y-3">
-            <div className="space-y-1">
-              <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Notificações push
-              </h4>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Receba um aviso no seu iPhone quando o agente de IA gerar as metas do próximo mês.
-              </p>
-            </div>
-            {pushState !== "subscribed" && pushState !== "unsubscribed" ? (
-              <p className="text-xs text-muted-foreground">
-                {pushState === "no-push-manager" &&
-                  "Push não suportado neste navegador. No iPhone, abra o RICC OS pelo ícone da tela de início (não pelo Safari) — é preciso iOS 16.4 ou mais recente."}
-                {pushState === "no-service-worker" &&
-                  "Este navegador não suporta notificações push."}
-                {pushState === "no-vapid-key" &&
-                  "Configuração pendente no servidor (chave pública ausente). Avise o suporte."}
-                {pushState === "timeout" &&
-                  "O navegador não respondeu a tempo (o service worker pode estar travado). Feche o app por completo e abra de novo."}
-                {pushState === "no-window" && "Carregando..."}
-              </p>
-            ) : (
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Ativar notificações</span>
-                <Switch
-                  checked={pushState === "subscribed"}
-                  disabled={pushLoading}
-                  onCheckedChange={handlePushToggle}
-                />
-              </div>
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
+      <PushToggle />
 
       {showBalance && (
         <div
@@ -426,6 +391,104 @@ export function PeriodFilter({ showBalance = true }: { showBalance?: boolean }) 
         </div>
       )}
     </div>
+  );
+}
+
+/** Botão + popover para ativar/desativar as notificações push deste dispositivo. */
+export function PushToggle() {
+  const { profile, user } = useAuth();
+  const [pushState, setPushState] = useState<PushState>("no-window");
+  const [pushLoading, setPushLoading] = useState(false);
+
+  useEffect(() => {
+    getPushSubscriptionState()
+      .then(setPushState)
+      .catch((err) => {
+        console.error("[push] erro ao checar estado da inscrição:", err);
+        toast.error(
+          err instanceof Error
+            ? `Erro ao checar notificações: ${err.message}`
+            : "Erro ao checar notificações push.",
+        );
+      });
+  }, []);
+
+  const handlePushToggle = async (checked: boolean) => {
+    const userId = profile?.user_id ?? user?.id;
+    if (!userId) return;
+
+    setPushLoading(true);
+    try {
+      if (checked) {
+        await subscribeToPush(userId);
+        setPushState("subscribed");
+        toast.success("Notificações push ativadas.");
+      } else {
+        await unsubscribeFromPush();
+        setPushState("unsubscribed");
+        toast.success("Notificações push desativadas.");
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Não foi possível atualizar as notificações.",
+      );
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className="size-11 shrink-0 sm:size-10"
+          title="Notificações push"
+          aria-label="Notificações push"
+        >
+          {pushState === "subscribed" ? (
+            <Bell className="text-primary" />
+          ) : (
+            <BellOff className="text-muted-foreground" />
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64" align="end">
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Notificações push
+            </h4>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Avisos do RiccOS no seu iPhone: metas e alertas do financeiro, lembretes de refeição e
+              relatórios semanais.
+            </p>
+          </div>
+          {pushState !== "subscribed" && pushState !== "unsubscribed" ? (
+            <p className="text-xs text-muted-foreground">
+              {pushState === "no-push-manager" &&
+                "Push não suportado neste navegador. No iPhone, abra o RICC OS pelo ícone da tela de início (não pelo Safari) — é preciso iOS 16.4 ou mais recente."}
+              {pushState === "no-service-worker" && "Este navegador não suporta notificações push."}
+              {pushState === "no-vapid-key" &&
+                "Configuração pendente no servidor (chave pública ausente). Avise o suporte."}
+              {pushState === "timeout" &&
+                "O navegador não respondeu a tempo (o service worker pode estar travado). Feche o app por completo e abra de novo."}
+              {pushState === "no-window" && "Carregando..."}
+            </p>
+          ) : (
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Ativar notificações</span>
+              <Switch
+                checked={pushState === "subscribed"}
+                disabled={pushLoading}
+                onCheckedChange={handlePushToggle}
+              />
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -456,37 +519,48 @@ function MobileHeader() {
   );
 }
 
-function MobileBottomNav() {
-  const state = useRouterState();
-  const currentPath = state.location.pathname;
+const navItemClass =
+  "flex h-full flex-col items-center justify-center gap-1 rounded-2xl text-center transition-all active:scale-95";
 
-  const left = mobileNavItems.slice(0, 2);
-  const right = mobileNavItems.slice(2);
-  const coreActive = currentPath === "/" || currentPath === "/riccos";
+function navTone(active: boolean) {
+  return active ? "text-primary" : "text-muted-foreground hover:text-foreground";
+}
 
-  const NavItem = ({ item }: { item: (typeof financialItems)[number] }) => {
-    const active = currentPath === item.url;
-    const Icon = item.icon;
-    return (
-      <Link
-        to={item.url}
+function NavItemContent({
+  icon: Icon,
+  title,
+  active,
+}: {
+  icon: LucideIcon;
+  title: string;
+  active: boolean;
+}) {
+  return (
+    <>
+      <span
         className={cn(
-          "flex h-full flex-col items-center justify-center gap-1 rounded-2xl text-center transition-all active:scale-95",
-          active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+          "grid size-8 place-items-center rounded-xl transition-colors",
+          active && "bg-primary/12",
         )}
       >
-        <span
-          className={cn(
-            "grid size-8 place-items-center rounded-xl transition-colors",
-            active && "bg-primary/12",
-          )}
-        >
-          <Icon className="size-[18px]" />
-        </span>
-        <span className="text-[10px] font-medium leading-none">{item.title}</span>
-      </Link>
-    );
-  };
+        <Icon className="size-[18px]" />
+      </span>
+      <span className="text-[10px] font-medium leading-none">{title}</span>
+    </>
+  );
+}
+
+/**
+ * Bottom nav mobile por módulo: Financeiro · Alimentação · (núcleo) · Missões · Menu.
+ * As páginas de cada módulo ficam nas abas do topo (`ModuleTabs`).
+ */
+function MobileBottomNav() {
+  const state = useRouterState();
+  const { toggleSidebar } = useSidebar();
+  const currentPath = state.location.pathname;
+  const currentModule = moduleForPath(currentPath);
+  const coreActive = currentPath === "/" || currentPath === "/riccos";
+  const missoesActive = currentPath === "/missoes";
 
   return (
     <nav
@@ -495,9 +569,14 @@ function MobileBottomNav() {
       aria-label="Navegação principal"
     >
       <div className="glass relative grid h-[68px] grid-cols-5 items-stretch rounded-[28px] px-1.5 shadow-2xl">
-        {left.map((item) => (
-          <NavItem key={item.url} item={item} />
-        ))}
+        {modules.map((m) => {
+          const active = currentModule?.key === m.key;
+          return (
+            <Link key={m.key} to={m.home} className={cn(navItemClass, navTone(active))}>
+              <NavItemContent icon={m.icon} title={m.title} active={active} />
+            </Link>
+          );
+        })}
 
         {/* Núcleo central elevado */}
         <div className="relative">
@@ -515,9 +594,54 @@ function MobileBottomNav() {
           </Link>
         </div>
 
-        {right.map((item) => (
-          <NavItem key={item.url} item={item} />
-        ))}
+        <Link to="/missoes" className={cn(navItemClass, navTone(missoesActive))}>
+          <NavItemContent icon={Trophy} title="Missões" active={missoesActive} />
+        </Link>
+
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label="Abrir menu"
+          className={cn(navItemClass, navTone(false))}
+        >
+          <NavItemContent icon={Menu} title="Menu" active={false} />
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+/** Abas do módulo atual (só no mobile — no desktop a sidebar já lista as páginas). */
+function ModuleTabs() {
+  const currentPath = useRouterState({ select: (s) => s.location.pathname });
+  const currentModule = moduleForPath(currentPath);
+  if (!currentModule) return null;
+  const clean = currentPath.length > 1 ? currentPath.replace(/\/+$/, "") : currentPath;
+
+  return (
+    <nav
+      aria-label={`Páginas de ${currentModule.title}`}
+      className="-mx-3 mb-4 overflow-x-auto px-3 md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      <div className="flex w-max gap-1.5">
+        {currentModule.items.map((item) => {
+          const active = item.url === clean;
+          return (
+            <Link
+              key={item.url}
+              to={item.url}
+              className={cn(
+                "flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-xs font-semibold transition-colors",
+                active
+                  ? "border-transparent bg-primary text-primary-foreground"
+                  : "bg-card text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <item.icon className="size-3.5" />
+              {item.title}
+            </Link>
+          );
+        })}
       </div>
     </nav>
   );
@@ -529,7 +653,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <AppSidebar />
       <SidebarInset className="min-w-0 flex-1 md:min-h-[calc(100svh-1rem)]">
         <MobileHeader />
-        <div className="flex-1 px-3 pb-32 pt-4 sm:px-6 md:px-8 md:pb-10 md:pt-8">{children}</div>
+        <div className="flex-1 px-3 pb-32 pt-4 sm:px-6 md:px-8 md:pb-10 md:pt-8">
+          <ModuleTabs />
+          {children}
+        </div>
       </SidebarInset>
       <MobileBottomNav />
       <IosInstallPrompt />

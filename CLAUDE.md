@@ -42,11 +42,15 @@ Se houver qualquer dúvida se um workflow pertence ao RICC OS → **não mexer, 
 
 | ID                  | Nome                                          | Status |
 |---------------------|-----------------------------------------------|--------|
-| `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Operação - Central de Comando por Voz` (antigo "Financeiro - Salvar Transações") | 🟢 Publicado (voz da Central; `Roteador de Domínio` separa Financeiro / Academia / Alimentação / Outro — só Financeiro tem fluxo, os outros são placeholders; parcelado vira N linhas no nó `RESULTADO FINAL`) |
+| `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Operação - Central de Comando por Voz` (antigo "Financeiro - Salvar Transações") | 🟢 Publicado (voz da Central; `Roteador de Domínio` separa Financeiro / Academia / Alimentação / Outro — Financeiro e Alimentação têm fluxo (Alimentação cria a refeição `processando` e chama o sub-workflow `Registrar Refeição`), Academia é placeholder; parcelado vira N linhas no nó `RESULTADO FINAL`) |
 | `Qg4qY07wPI9HC8k6`  | `🟢Ricc OS | Financeiro - Gerar Metas com IA` | 🟢 Publicado |
 | `PlwBzdIQVUFQ3rm9`  | `🟢Ricc OS | Financeiro - Gerar Insights de Gastos` | 🟢 Publicado (roda toda segunda 7h; envia push reaproveitando a credencial `Supabase - Ricc OS`) |
 | `TiXgtApZDQzt6G16`  | `🟢Ricc OS | Financeiro - Lançar Compra Wallet` | 🟢 Publicado (webhook `riccos-wallet-compra` chamado pela automação "Transação" do Atalhos do iPhone; header `X-Riccos-Token` via credencial `Ricc OS - Webhook Wallet`) |
 | `Fu6fdrAVnSQk9Wru`  | `🟢Ricc OS | Financeiro - Alertas de Metas` | 🟢 Publicado (todo dia 9h; push quando meta passa de 80%, estoura ou fica em risco pelo ritmo; dedupe em `alertas_enviados`; nó `Calcular Alertas` espelha `src/lib/month-pace.ts` — **mudar nos dois lugares**) |
+| `7MVoHOmk6bk8BnuR`  | `🟢Ricc OS | Alimentação - Registrar Refeição` | 🟢 Publicado (webhook `riccos-alimentacao-refeicao` chamado pelo app com `{ refeicao_id }` + gatilho de sub-workflow para a voz; lê a refeição `processando`, a IA separa itens/kcal/macros/qualidade e grava pela RPC `alimentacao_salvar_refeicao`) |
+| `2DYpU6YQ5OJIOgcs`  | `🟢Ricc OS | Alimentação - Gerar Protocolo` | 🟢 Publicado (webhook `riccos-alimentacao-protocolo` com `{ protocolo_id }`; agente monta o plano de 60 dias e ativa pela RPC `alimentacao_ativar_protocolo`; push ao terminar) |
+| `dEdq4pKVu5roiGZ5`  | `🟢Ricc OS | Alimentação - Lembretes` | 🟢 Publicado (cron `5,35 * * * *`; push de "hora de comer" após `protocolo_intervalo_max_h` sem registro, só acordado, e aviso de renovação do protocolo em D-7/D-3/D0; dedupe em `alertas_enviados` com chaves `alim_*`) |
+| `4OEkNbWP6Cc4dUzj`  | `🟢Ricc OS | Alimentação - Relatório Semanal` | 🟢 Publicado (segunda 7h30; nó `Calcular Semana` espelha `computeDailyStats`/`summarizeDays` de `src/lib/alimentacao.ts` — **mudar nos dois lugares**; grava `alimentacao_relatorios` + push) |
 
 > Atualize esta tabela sempre que criar ou remover um workflow do RICC OS.
 
@@ -111,6 +115,14 @@ Use a área que melhor descreve o domínio da automação. Áreas já em uso na 
   (Visão Geral: sobra do período → guardado → sem destino).
 - `alertas_enviados` (RLS só leitura do dono; escrita pelo n8n com service role): chave única
   `{nivel}:{categoria_id}:{AAAA-MM}` por usuário, para cada alerta de meta sair uma vez por período.
+  A Alimentação usa as chaves `alim_lembrete:{instante}` e `alim_protocolo:{protocolo_id}:{d7|d3|d0}`.
+- **Alimentação** (todas com RLS `user_id = auth.uid()`; ver seção 6):
+  `alimentacao_protocolos` (respostas do formulário + plano da IA; **um único `ativo` por usuário**, validade
+  60 dias, status `gerando|ativo|erro|substituido`), `refeicoes` (status `processando|ok|erro`, origem
+  `texto|voz|checkin`, qualidade `boa|ok|ruim`, motivo do erro), `refeicao_itens` (os totais de kcal/macros
+  da refeição são mantidos por **trigger** a partir dos itens — não gravar totais à mão),
+  `medidas_corporais` e `alimentacao_relatorios` (só leitura do dono; escrita pelo n8n).
+  RPCs `alimentacao_salvar_refeicao` e `alimentacao_ativar_protocolo` são **só service role** (n8n).
 - Inserts sempre com `user_id: user.id` (auth), seguindo `store.tsx`.
 - **Compra parcelada:** o valor informado é o **total** da compra; `addTransaction` divide com
   `splitInstallments` (`finance-data.ts`, centavos que sobram vão nas primeiras parcelas) e grava
@@ -164,13 +176,16 @@ Definido em `src/styles.css` (tokens) e nos componentes de `src/components/ui` e
 - **Mobile é obrigatório:** todo layout novo precisa funcionar em 375px. Header mobile
   (`glass`), bottom nav flutuante com o núcleo central e listas em cards (não tabelas)
   abaixo de `md`. Tabelas desktop devem ocultar colunas secundárias em `md`/`lg`.
-  A bottom nav tem **4 itens + núcleo** (Visão Geral, Transações, Metas, Missões); Relatórios
-  fica só no menu lateral (`mobileNavItems` em `app-shell.tsx`). Não adicionar um 6º item.
+- **Navegação por módulo** (`modules` em `app-shell.tsx`): a bottom nav é
+  **Financeiro · Alimentação · (núcleo) · Missões · Menu** — cada módulo leva à sua `home` e as páginas
+  dele aparecem como abas no topo no mobile (`ModuleTabs`). Na sidebar, um grupo por módulo + "Progresso"
+  (Missões). Não adicionar um 6º item na bottom nav: módulo novo (ex.: Treino) entra em `modules` e a
+  barra é revista com o usuário. `PushToggle` é o controle de notificações reutilizável em qualquer página.
 - **Colapsar a sidebar** (`SidebarBrandHeader` em `app-shell.tsx`): o controle vive no cabeçalho,
   nunca solto no meio do menu. Expandido = botão fantasma `«` à direita da marca; colapsado = o
   próprio tile da marca vira `»` no hover/foco. No drawer mobile o botão não aparece.
 
-## 5. Minigame financeiro ("Missões")
+## 5. Minigame ("Missões") — placar de todos os módulos
 
 Regras em `src/lib/gamification.ts` (funções puras), estado em
 `src/components/riccos/gamification.tsx` (`useGamification`), UI em `src/routes/missoes.tsx`
@@ -180,6 +195,10 @@ e widgets em `season-widgets.tsx` (`ScoreCard` na Visão Geral, `ScoreBadge` na 
 - **Missões automáticas** (calculadas dos lançamentos/metas, nunca persistidas): fechar no azul (100),
   contas em dia (100), gastar menos que o mês anterior (80), renda comprometida ≤ 70% (60),
   ≥ 10 lançamentos (30) e uma por meta de categoria definida no mês (40 cada).
+- **Missões de Alimentação** (`computeAlimentacaoMissions`, ids `auto-alim-*`, só em períodos com
+  protocolo): proteína batida em 20 dias (100), registro em 25 dias (60), ≤ 4 refeições fora do plano (80),
+  ≤ 3 puladas (60), média de kcal na faixa ±10% (60), 4 pesagens (30). As de "no máximo" só valem com
+  registro em ≥ 15 dias (para não ganhar pontos sem registrar). A página Missões agrupa por módulo.
 - **Missões manuais**: tabela `missoes`, criadas/marcadas pelo usuário (5–500 pts).
 - **Faixas** por % do total possível: Bronze ≥ 45%, Prata ≥ 65%, Ouro ≥ 85% (`FAIXA_THRESHOLDS`).
 - **Fechamento** (`closeSeason`): grava `temporadas` com snapshot das missões, pontos e faixa.
@@ -193,7 +212,25 @@ e widgets em `season-widgets.tsx` (`ScoreCard` na Visão Geral, `ScoreBadge` na 
   ou punição sem ele pedir.
 - Ao mudar regras/pontos, manter `computeAutoMissions` pura e atualizar esta seção.
 
-## 6. Segurança
+## 6. Módulo Alimentação
+
+Rotas em `src/routes/alimentacao/` (Diário `/alimentacao`, Relatórios, Corpo, Protocolo), regras puras em
+`src/lib/alimentacao.ts`, estado em `src/components/riccos/alimentacao-store.tsx` (`useAlimentacao`) e
+componentes em `alimentacao-widgets.tsx`.
+
+- **Protocolo**: formulário → linha `gerando` → webhook do n8n → agente gera metas (kcal/macros/água),
+  rotina (mínimo de refeições, intervalo máximo, janelas), cardápio com opções e critérios 🟢🟡🔴. Vale
+  60 dias; perto do fim o n8n avisa por push para responder de novo (pré-preenchido com as respostas
+  anteriores e a última medição).
+- **Registro**: texto no Diário ou voz na Central → linha `processando` → n8n calcula e marca `ok`
+  (ou `erro`, com "tentar de novo"). Check-in grava direto uma opção do cardápio. Editar a quantidade de
+  um item recalcula na proporção (`scaleItem`). Refeição `ruim` pede o motivo (fome, ansiedade…).
+- **Análise é semanal**: refeições puladas = dias com registro abaixo do mínimo do protocolo, só em dias
+  já encerrados (ele pode lançar depois com outro horário); registros com < 90 min de intervalo contam
+  como uma refeição. Dia sem nenhum registro é "sem registro", não "pulado".
+- Sem nada de treino por enquanto (módulo Academia vem depois).
+
+## 7. Segurança
 
 - `.mcp.json` contém tokens (Supabase access token e API key do n8n). **Nunca** commitar
   este arquivo nem exibir seus valores em respostas. Ele deve estar no `.gitignore`.

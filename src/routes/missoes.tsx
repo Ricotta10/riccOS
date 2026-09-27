@@ -58,6 +58,7 @@ import {
   FAIXA_LABEL,
   FAIXA_THRESHOLDS,
   LEVELS,
+  ALIM_MISSION_PREFIX,
   type Faixa,
   type Mission,
 } from "@/lib/gamification";
@@ -66,11 +67,11 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/missoes")({
   head: () => ({
     meta: [
-      { title: "Missões — RiccOS | Temporada financeira" },
+      { title: "Missões — RiccOS | Temporada" },
       {
         name: "description",
         content:
-          "Missões mensais, pontuação e faixas Bronze/Prata/Ouro para manter a disciplina financeira.",
+          "Missões mensais de todos os módulos, pontuação e faixas Bronze/Prata/Ouro para manter a disciplina.",
       },
       { property: "og:title", content: "Missões — RiccOS" },
     ],
@@ -234,6 +235,28 @@ function MissionsPage() {
 
   const locked = !!closedSeason;
   const s = faixaStyles[season.faixa];
+
+  // Temporada fechada mostra o snapshot; aberta, as missões calculadas agora.
+  const autoGroups = useMemo(() => {
+    const list: Mission[] = closedSeason
+      ? closedSeason.temporada_detalhes
+          .filter((d) => d.id.startsWith("auto-"))
+          .map((d) => ({
+            id: d.id,
+            kind: "auto",
+            titulo: d.titulo,
+            descricao: "",
+            pontos: d.pontos,
+            status: d.concluida ? "concluida" : "falhou",
+            progresso: d.concluida ? 100 : 0,
+            detalhe: d.detalhe,
+          }))
+      : autoMissions;
+    return [
+      { titulo: "Financeiro", missions: list.filter((m) => !m.id.startsWith(ALIM_MISSION_PREFIX)) },
+      { titulo: "Alimentação", missions: list.filter((m) => m.id.startsWith(ALIM_MISSION_PREFIX)) },
+    ].filter((g) => g.missions.length > 0);
+  }, [closedSeason, autoMissions]);
 
   const history = useMemo(
     () =>
@@ -472,32 +495,22 @@ function MissionsPage() {
               Missões automáticas
             </CardTitle>
             <CardDescription className="text-xs">
-              Avaliadas em tempo real a partir dos seus lançamentos e metas.
+              Avaliadas em tempo real a partir dos seus módulos: finanças e alimentação.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2.5">
-            {(closedSeason ? [] : autoMissions).map((m) => (
-              <MissionRow key={m.id} mission={m} locked={locked} />
-            ))}
-            {closedSeason &&
-              closedSeason.temporada_detalhes
-                .filter((d) => d.id.startsWith("auto-"))
-                .map((d) => (
-                  <MissionRow
-                    key={d.id}
-                    locked
-                    mission={{
-                      id: d.id,
-                      kind: "auto",
-                      titulo: d.titulo,
-                      descricao: "",
-                      pontos: d.pontos,
-                      status: d.concluida ? "concluida" : "falhou",
-                      progresso: d.concluida ? 100 : 0,
-                      detalhe: d.detalhe,
-                    }}
-                  />
+          <CardContent className="space-y-4">
+            {autoGroups.map((group) => (
+              <div key={group.titulo} className="space-y-2.5">
+                {autoGroups.length > 1 && (
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    {group.titulo}
+                  </p>
+                )}
+                {group.missions.map((m) => (
+                  <MissionRow key={m.id} mission={m} locked={locked} />
                 ))}
+              </div>
+            ))}
           </CardContent>
         </Card>
 
