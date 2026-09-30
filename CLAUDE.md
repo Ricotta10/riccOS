@@ -228,6 +228,10 @@ componentes em `alimentacao-widgets.tsx`.
 - **Análise é semanal**: refeições puladas = dias com registro abaixo do mínimo do protocolo, só em dias
   já encerrados (ele pode lançar depois com outro horário); registros com < 90 min de intervalo contam
   como uma refeição. Dia sem nenhum registro é "sem registro", não "pulado".
+- **Lista de compras** (`/alimentacao/compras`, regras em `src/lib/compras.ts`): calculada no app a partir
+  do cardápio do protocolo ativo — cada refeição 1x por dia, opções se revezando; soma itens iguais, converte
+  pronto → cru (arroz/feijão/massa cozidos, carnes grelhadas) e agrupa por seção do mercado. Dias em casa
+  (5/6/7) e itens marcados ficam no `localStorage` do aparelho e zeram toda segunda.
 - Sem nada de treino por enquanto (módulo Academia vem depois).
 
 ## 7. Segurança

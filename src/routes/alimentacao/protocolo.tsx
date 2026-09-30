@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
@@ -10,6 +10,7 @@ import {
   Home,
   Loader2,
   RefreshCw,
+  ShoppingCart,
   Sparkles,
   XCircle,
 } from "lucide-react";
@@ -204,6 +205,20 @@ function PlanoView({ protocolo }: { protocolo: DbProtocolo }) {
         <StatCard label="Carboidrato" value={`${Math.round(plano.metas.carbo_g)} g`} />
         <StatCard label="Gordura" value={`${Math.round(plano.metas.gordura_g)} g`} />
       </div>
+
+      {plano.cardapio && plano.cardapio.length > 0 && (
+        <Card className="border-transparent bg-accent text-accent-foreground">
+          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+            <ShoppingCart className="size-5 shrink-0" />
+            <p className="flex-1 text-sm font-medium">
+              A lista de compras da semana já está pronta, montada a partir deste cardápio.
+            </p>
+            <Button asChild size="sm">
+              <Link to="/alimentacao/compras">Ver lista de compras</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>

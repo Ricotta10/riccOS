@@ -17,6 +17,7 @@ import {
   NotebookPen,
   Ruler,
   Salad,
+  ShoppingCart,
   Target,
   Trophy,
   Wallet,
@@ -78,6 +79,7 @@ const financialItems: NavItemDef[] = [
 
 const alimentacaoItems: NavItemDef[] = [
   { title: "Diário", url: "/alimentacao", icon: NotebookPen },
+  { title: "Compras", url: "/alimentacao/compras", icon: ShoppingCart },
   { title: "Relatórios", url: "/alimentacao/relatorios", icon: BarChart3 },
   { title: "Corpo", url: "/alimentacao/corpo", icon: Ruler },
   { title: "Protocolo", url: "/alimentacao/protocolo", icon: ClipboardList },

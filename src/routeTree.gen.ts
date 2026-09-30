@@ -18,6 +18,7 @@ import { Route as RiccosRouteImport } from './routes/riccos'
 import { Route as TransacoesRouteImport } from './routes/transacoes'
 import { Route as VisaoGeralRouteImport } from './routes/visao-geral'
 import { Route as AlimentacaoIndexRouteImport } from './routes/alimentacao/index'
+import { Route as AlimentacaoComprasRouteImport } from './routes/alimentacao/compras'
 import { Route as AlimentacaoCorpoRouteImport } from './routes/alimentacao/corpo'
 import { Route as AlimentacaoProtocoloRouteImport } from './routes/alimentacao/protocolo'
 import { Route as AlimentacaoRelatoriosRouteImport } from './routes/alimentacao/relatorios'
@@ -67,6 +68,11 @@ const AlimentacaoIndexRoute = AlimentacaoIndexRouteImport.update({
   path: '/alimentacao/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AlimentacaoComprasRoute = AlimentacaoComprasRouteImport.update({
+  id: '/alimentacao/compras',
+  path: '/alimentacao/compras',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AlimentacaoCorpoRoute = AlimentacaoCorpoRouteImport.update({
   id: '/alimentacao/corpo',
   path: '/alimentacao/corpo',
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
   '/visao-geral': typeof VisaoGeralRoute
+  '/alimentacao/compras': typeof AlimentacaoComprasRoute
   '/alimentacao/corpo': typeof AlimentacaoCorpoRoute
   '/alimentacao/protocolo': typeof AlimentacaoProtocoloRoute
   '/alimentacao/relatorios': typeof AlimentacaoRelatoriosRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
   '/visao-geral': typeof VisaoGeralRoute
+  '/alimentacao/compras': typeof AlimentacaoComprasRoute
   '/alimentacao/corpo': typeof AlimentacaoCorpoRoute
   '/alimentacao/protocolo': typeof AlimentacaoProtocoloRoute
   '/alimentacao/relatorios': typeof AlimentacaoRelatoriosRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/riccos': typeof RiccosRoute
   '/transacoes': typeof TransacoesRoute
   '/visao-geral': typeof VisaoGeralRoute
+  '/alimentacao/compras': typeof AlimentacaoComprasRoute
   '/alimentacao/corpo': typeof AlimentacaoCorpoRoute
   '/alimentacao/protocolo': typeof AlimentacaoProtocoloRoute
   '/alimentacao/relatorios': typeof AlimentacaoRelatoriosRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/riccos'
     | '/transacoes'
     | '/visao-geral'
+    | '/alimentacao/compras'
     | '/alimentacao/corpo'
     | '/alimentacao/protocolo'
     | '/alimentacao/relatorios'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/riccos'
     | '/transacoes'
     | '/visao-geral'
+    | '/alimentacao/compras'
     | '/alimentacao/corpo'
     | '/alimentacao/protocolo'
     | '/alimentacao/relatorios'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/riccos'
     | '/transacoes'
     | '/visao-geral'
+    | '/alimentacao/compras'
     | '/alimentacao/corpo'
     | '/alimentacao/protocolo'
     | '/alimentacao/relatorios'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   RiccosRoute: typeof RiccosRoute
   TransacoesRoute: typeof TransacoesRoute
   VisaoGeralRoute: typeof VisaoGeralRoute
+  AlimentacaoComprasRoute: typeof AlimentacaoComprasRoute
   AlimentacaoCorpoRoute: typeof AlimentacaoCorpoRoute
   AlimentacaoProtocoloRoute: typeof AlimentacaoProtocoloRoute
   AlimentacaoRelatoriosRoute: typeof AlimentacaoRelatoriosRoute
@@ -251,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AlimentacaoIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/alimentacao/compras': {
+      id: '/alimentacao/compras'
+      path: '/alimentacao/compras'
+      fullPath: '/alimentacao/compras'
+      preLoaderRoute: typeof AlimentacaoComprasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/alimentacao/corpo': {
       id: '/alimentacao/corpo'
       path: '/alimentacao/corpo'
@@ -284,6 +304,7 @@ const rootRouteChildren: RootRouteChildren = {
   RiccosRoute: RiccosRoute,
   TransacoesRoute: TransacoesRoute,
   VisaoGeralRoute: VisaoGeralRoute,
+  AlimentacaoComprasRoute: AlimentacaoComprasRoute,
   AlimentacaoCorpoRoute: AlimentacaoCorpoRoute,
   AlimentacaoProtocoloRoute: AlimentacaoProtocoloRoute,
   AlimentacaoRelatoriosRoute: AlimentacaoRelatoriosRoute,
