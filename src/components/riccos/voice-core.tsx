@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, AudioLines, Check, Loader2, Square } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { LogoMark } from "./brand";
 import { ScoreBadge } from "./season-widgets";
@@ -139,8 +140,14 @@ export function VoiceCore() {
       formData.append("duration_seconds", String(timerSeconds));
       formData.append("created_at", new Date().toISOString());
 
+      // O n8n valida este token para descobrir quem está falando (não confia no user_id do corpo).
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
       const response = await fetch(WEBHOOK_URL, {
         method: "POST",
+        headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
         body: formData,
       });
 

@@ -169,16 +169,23 @@ export function AlimentacaoProvider({ children }: { children: ReactNode }) {
         supabase
           .from("alimentacao_protocolos")
           .select("*")
+          .eq("user_id", user.id)
           .order("criado_em", { ascending: false }),
         supabase
           .from("refeicoes")
           .select("*, refeicao_itens(*)")
+          .eq("user_id", user.id)
           .gte("refeicao_em", desde)
           .order("refeicao_em", { ascending: false }),
-        supabase.from("medidas_corporais").select("*").order("medida_data", { ascending: false }),
+        supabase
+          .from("medidas_corporais")
+          .select("*")
+          .eq("user_id", user.id)
+          .order("medida_data", { ascending: false }),
         supabase
           .from("alimentacao_relatorios")
           .select("*")
+          .eq("user_id", user.id)
           .order("relatorio_semana_inicio", { ascending: false })
           .limit(12),
       ]);

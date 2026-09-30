@@ -103,11 +103,25 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const userId = user?.id;
+
   const refetchData = useCallback(async () => {
+    // Multiusuário: o RLS já isola por dono; o filtro por user_id é a segunda barreira
+    // e a limpeza evita mostrar dados do usuário anterior ao trocar de conta.
+    if (!userId) {
+      setTransactions([]);
+      setDbCategories([]);
+      setDbSubcategories([]);
+      setDbGoals([]);
+      return;
+    }
     setLoading(true);
     try {
       // 1. Fetch categorias
-      const { data: catData, error: catErr } = await supabase.from("categorias").select("*");
+      const { data: catData, error: catErr } = await supabase
+        .from("categorias")
+        .select("*")
+        .eq("user_id", userId);
       if (catErr) console.error("Erro ao buscar categorias:", catErr);
       const fetchedCategories = (catData as DbCategory[]) || [];
       setDbCategories(fetchedCategories);
@@ -116,7 +130,10 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
       fetchedCategories.forEach((c) => catMap.set(c.categoria_id, c.categoria_nome));
 
       // 2. Fetch subcategorias
-      const { data: subData, error: subErr } = await supabase.from("subcategorias").select("*");
+      const { data: subData, error: subErr } = await supabase
+        .from("subcategorias")
+        .select("*")
+        .eq("user_id", userId);
       if (subErr) console.error("Erro ao buscar subcategorias:", subErr);
       const fetchedSubcategories = (subData as DbSubcategory[]) || [];
       setDbSubcategories(fetchedSubcategories);
@@ -128,6 +145,7 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
       const { data: txData, error: txError } = await supabase
         .from("transacoes")
         .select("*")
+        .eq("user_id", userId)
         .order("transacao_data_vencimento", { ascending: false });
 
       if (txError) {
@@ -140,7 +158,10 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
       }
 
       // 4. Fetch metas
-      const { data: goalData, error: goalErr } = await supabase.from("metas").select("*");
+      const { data: goalData, error: goalErr } = await supabase
+        .from("metas")
+        .select("*")
+        .eq("user_id", userId);
       if (goalErr) console.error("Erro ao buscar metas no Supabase:", goalErr);
       setDbGoals((goalData as DbGoal[]) || []);
     } catch (err) {
@@ -148,11 +169,11 @@ export function RiccosProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     refetchData();
-  }, [user, refetchData]);
+  }, [refetchData]);
 
   const addTransaction = useCallback(
     async (tx: Omit<Transaction, "id">) => {

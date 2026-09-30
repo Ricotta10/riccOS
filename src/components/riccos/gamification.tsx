@@ -87,8 +87,8 @@ export function GamificationProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const [m, t] = await Promise.all([
-        supabase.from("missoes").select("*"),
-        supabase.from("temporadas").select("*"),
+        supabase.from("missoes").select("*").eq("user_id", user.id),
+        supabase.from("temporadas").select("*").eq("user_id", user.id),
       ]);
       if (m.error) console.error("Erro ao buscar missões:", m.error);
       if (t.error) console.error("Erro ao buscar temporadas:", t.error);

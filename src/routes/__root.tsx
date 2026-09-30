@@ -129,7 +129,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "RiccOS: assistente pessoal do Rodrigo, com módulos de finanças, alimentação e missões.",
+          "RiccOS: assistente pessoal, com módulos de finanças, alimentação e missões.",
       },
       { property: "og:title", content: "RiccOS — Assistente pessoal" },
       {

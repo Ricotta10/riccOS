@@ -328,7 +328,11 @@ function PlanoView({ protocolo }: { protocolo: DbProtocolo }) {
         <ListCard title="Orientações" items={plano.orientacoes} />
         <ListCard title="Evitar" items={plano.evitar} />
         <ListCard
-          title="No home office"
+          title={
+            protocolo.protocolo_respostas?.rotina?.trabalho === "home_office"
+              ? "No home office"
+              : "Na rotina de trabalho"
+          }
           items={plano.home_office}
           icon={<Home className="size-4" />}
         />

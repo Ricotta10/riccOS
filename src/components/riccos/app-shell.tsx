@@ -88,7 +88,7 @@ const alimentacaoItems: NavItemDef[] = [
 const progressItems: NavItemDef[] = [{ title: "Missões", url: "/missoes", icon: Trophy }];
 
 /**
- * Módulos da vida do Rodrigo. Cada um é um item da bottom nav mobile (leva à `home`) e,
+ * Módulos do assistente (iguais para todos os usuários). Cada um é um item da bottom nav mobile (leva à `home`) e,
  * dentro dele, as páginas aparecem como abas no topo (`ModuleTabs`).
  */
 const modules: {

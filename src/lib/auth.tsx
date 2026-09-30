@@ -38,44 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      // 1. Tentar buscar por user_id
-      const { data: dataById } = await supabase
+      // Multiusuário: o perfil é sempre o do usuário logado (linha criada pelo trigger
+      // handle_new_user). Nunca cair em outro registro, para não exibir o perfil de outra pessoa.
+      const { data } = await supabase
         .from("usuarios")
         .select("*")
         .eq("user_id", currentUser.id)
         .maybeSingle();
 
-      if (dataById) {
-        setProfile(dataById as UserProfile);
-        return;
-      }
-
-      // 2. Se não encontrar por user_id, tentar por user_email (insensível a maiúsculas)
-      if (currentUser.email) {
-        const { data: dataEmail } = await supabase
-          .from("usuarios")
-          .select("*")
-          .ilike("user_email", currentUser.email.trim())
-          .maybeSingle();
-
-        if (dataEmail) {
-          setProfile(dataEmail as UserProfile);
-          return;
-        }
-      }
-
-      // 3. Fallback: buscar primeiro registro disponível na tabela usuarios
-      const { data: allUsers } = await supabase
-        .from("usuarios")
-        .select("*")
-        .limit(1);
-
-      if (allUsers && allUsers.length > 0) {
-        setProfile(allUsers[0] as UserProfile);
-        return;
-      }
-
-      setProfile(null);
+      setProfile((data as UserProfile) ?? null);
     } catch (err) {
       console.error("Erro ao buscar perfil na tabela 'usuarios':", err);
       setProfile(null);
@@ -126,8 +97,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       if (profile.user_id) {
         await supabase.from("usuarios").update({ dia_vencimento: day }).eq("user_id", profile.user_id);
-      } else if (profile.user_email) {
-        await supabase.from("usuarios").update({ dia_vencimento: day }).eq("user_email", profile.user_email);
       }
     } catch (err) {
       console.error("Erro ao atualizar dia_vencimento do usuário:", err);

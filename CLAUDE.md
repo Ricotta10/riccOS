@@ -42,17 +42,26 @@ Se houver qualquer dúvida se um workflow pertence ao RICC OS → **não mexer, 
 
 | ID                  | Nome                                          | Status |
 |---------------------|-----------------------------------------------|--------|
-| `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Operação - Central de Comando por Voz` (antigo "Financeiro - Salvar Transações") | 🟢 Publicado (voz da Central; `Roteador de Domínio` separa Financeiro / Academia / Alimentação / Outro — Financeiro e Alimentação têm fluxo (Alimentação cria a refeição `processando` e chama o sub-workflow `Registrar Refeição`), Academia é placeholder; parcelado vira N linhas no nó `RESULTADO FINAL`) |
-| `Qg4qY07wPI9HC8k6`  | `🟢Ricc OS | Financeiro - Gerar Metas com IA` | 🟢 Publicado |
-| `PlwBzdIQVUFQ3rm9`  | `🟢Ricc OS | Financeiro - Gerar Insights de Gastos` | 🟢 Publicado (roda toda segunda 7h; envia push reaproveitando a credencial `Supabase - Ricc OS`) |
-| `TiXgtApZDQzt6G16`  | `🟢Ricc OS | Financeiro - Lançar Compra Wallet` | 🟢 Publicado (webhook `riccos-wallet-compra` chamado pela automação "Transação" do Atalhos do iPhone; header `X-Riccos-Token` via credencial `Ricc OS - Webhook Wallet`) |
-| `Fu6fdrAVnSQk9Wru`  | `🟢Ricc OS | Financeiro - Alertas de Metas` | 🟢 Publicado (todo dia 9h; push quando meta passa de 80%, estoura ou fica em risco pelo ritmo; dedupe em `alertas_enviados`; nó `Calcular Alertas` espelha `src/lib/month-pace.ts` — **mudar nos dois lugares**) |
+| `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Operação - Central de Comando por Voz` (antigo "Financeiro - Salvar Transações") | 🟢 Publicado (voz da Central; `Roteador de Domínio` separa Financeiro / Academia / Alimentação / Outro — Financeiro e Alimentação têm fluxo (Alimentação cria a refeição `processando` e chama o sub-workflow `Registrar Refeição`), Academia é placeholder; parcelado vira N linhas no nó `RESULTADO FINAL`; o nó `Identificar Usuário` descobre quem falou pelo JWT do app (`Authorization`) — tem fallback **temporário** para `body.user_id` até o app com o header estar no ar) |
+| `Qg4qY07wPI9HC8k6`  | `🟢Ricc OS | Financeiro - Gerar Metas com IA` | 🟢 Publicado (roda por usuário — ver "Workflows agendados multiusuário") |
+| `PlwBzdIQVUFQ3rm9`  | `🟢Ricc OS | Financeiro - Gerar Insights de Gastos` | 🟢 Publicado (roda toda segunda 7h, por usuário; envia push reaproveitando a credencial `Supabase - Ricc OS`) |
+| `TiXgtApZDQzt6G16`  | `🟢Ricc OS | Financeiro - Lançar Compra Wallet` | 🟢 Publicado (webhook `riccos-wallet-compra` chamado pela automação "Transação" do Atalhos do iPhone; header `X-Riccos-Token` via credencial `Ricc OS - Webhook Wallet` + header `X-Riccos-Usuario` = `usuarios.user_wallet_token` de quem comprou (nó `Identificar Dono`); sem esse header cai **temporariamente** no Rodrigo até o Atalho dele ser atualizado) |
+| `Fu6fdrAVnSQk9Wru`  | `🟢Ricc OS | Financeiro - Alertas de Metas` | 🟢 Publicado (todo dia 9h, por usuário; push quando meta passa de 80%, estoura ou fica em risco pelo ritmo; dedupe em `alertas_enviados`; nó `Calcular Alertas` espelha `src/lib/month-pace.ts` — **mudar nos dois lugares**) |
 | `7MVoHOmk6bk8BnuR`  | `🟢Ricc OS | Alimentação - Registrar Refeição` | 🟢 Publicado (webhook `riccos-alimentacao-refeicao` chamado pelo app com `{ refeicao_id }` + gatilho de sub-workflow para a voz; lê a refeição `processando`, a IA separa itens/kcal/macros/qualidade e grava pela RPC `alimentacao_salvar_refeicao`) |
 | `2DYpU6YQ5OJIOgcs`  | `🟢Ricc OS | Alimentação - Gerar Protocolo` | 🟢 Publicado (webhook `riccos-alimentacao-protocolo` com `{ protocolo_id }`; agente monta o plano de 60 dias e ativa pela RPC `alimentacao_ativar_protocolo`; push ao terminar) |
 | `dEdq4pKVu5roiGZ5`  | `🟢Ricc OS | Alimentação - Lembretes` | 🟢 Publicado (cron `5,35 * * * *`; push de "hora de comer" após `protocolo_intervalo_max_h` sem registro, só acordado, e aviso de renovação do protocolo em D-7/D-3/D0; dedupe em `alertas_enviados` com chaves `alim_*`) |
 | `4OEkNbWP6Cc4dUzj`  | `🟢Ricc OS | Alimentação - Relatório Semanal` | 🟢 Publicado (segunda 7h30; nó `Calcular Semana` espelha `computeDailyStats`/`summarizeDays` de `src/lib/alimentacao.ts` — **mudar nos dois lugares**; grava `alimentacao_relatorios` + push) |
 
 > Atualize esta tabela sempre que criar ou remover um workflow do RICC OS.
+
+### Workflows agendados multiusuário
+
+O RICC OS tem mais de um usuário (ver seção 3). Workflow agendado **nunca** fixa um `user_id`:
+o `Agendamento` → `Listar Usuários` → `Rodar por Usuário` (Execute Workflow chamando o próprio
+workflow, modo `each`) e o gatilho `Por Usuário` (sub-workflow, passthrough) → `Buscar Usuário`
+filtrado por `{{ $json.user_id }}`. Assim cada execução processa um usuário só. Webhooks descobrem
+o dono pelo JWT do app (voz), pelo token do Atalho (Wallet) ou pelo id da linha (Alimentação).
+Prompts de IA não citam nomes nem presumem sexo/rotina — usam os dados do usuário/formulário.
 
 ---
 
@@ -99,9 +108,15 @@ Use a área que melhor descreve o domínio da automação. Áreas já em uso na 
 
 - Projeto: `https://ehjsbzjkyukssobtywpx.supabase.co` (ref `ehjsbzjkyukssobtywpx`).
 - Este projeto Supabase é **exclusivo do RICC OS** — pode ser usado livremente.
-- Tabelas atuais (schema `public`, todas com RLS habilitado): `usuarios`, `categorias`,
-  `subcategorias`, `transacoes`, `metas`, e as do minigame: `missoes` e `temporadas`
-  (estas duas com políticas `user_id = auth.uid()`; as antigas usam a política ampla "Liberar Acesso").
+- **Multiusuário:** hoje são dois usuários com acesso completo e dados separados — Rodrigo
+  (`5868f446-…`, vencimento dia 3) e Julia (`35b81685-…`, vencimento dia 15). **Toda** tabela tem
+  `user_id` e RLS de dono (`user_id = (select auth.uid())`); não existe mais política ampla
+  ("Liberar Acesso" foi removida em 30/09/2026). No app, buscas também filtram `.eq("user_id", user.id)`.
+  Usuário novo: criar no Auth → trigger `handle_new_user` cria a linha em `usuarios` e
+  `cadastrar_categorias_padrao` semeia as categorias; depois preencher nome/avatar/`dia_vencimento`.
+- Tabelas atuais (schema `public`, todas com RLS habilitado): `usuarios` (só lê/edita a própria linha;
+  `user_wallet_token` = segredo do Atalho da Wallet), `categorias`, `subcategorias`, `transacoes`,
+  `metas`, e as do minigame: `missoes` e `temporadas`.
 - `transacoes.transacao_origem` (`manual`|`voz`|`wallet`), `transacao_revisada` (false = fila de revisão
   das compras da Wallet em `wallet-review.tsx`), `transacao_chave_externa` (dedupe, índice único parcial) e
   `transacao_estabelecimento_original` (nome cru da Wallet, antes de apelido/IA).
@@ -163,7 +178,7 @@ Definido em `src/styles.css` (tokens) e nos componentes de `src/components/ui` e
   Arquivos derivados: `logo-black.png`, `logo-mint.png`, ícones PWA e `favicon.ico`.
   **Nunca usar os ícones `Bot`/`Sparkles` do lucide como identidade** — o "robô" foi
   substituído pelo núcleo de voz (`voice-core.tsx`) e pela marca RR.
-- **Central de Comando (`/`) é o assistente geral do Rodrigo**, não uma tela financeira:
+- **Central de Comando (`/`) é o assistente geral do usuário logado**, não uma tela financeira:
   nenhum texto, regra ou atalho específico de finanças nela (o financeiro é só o primeiro módulo).
   Manter a tela limpa: saudação, núcleo de voz, estado da gravação e o `ScoreBadge` discreto.
 - **O RiccOS se apresenta como assistente pessoal, não como app financeiro.** Vale para a
