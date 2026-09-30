@@ -181,7 +181,9 @@ export function AlimentacaoProvider({ children }: { children: ReactNode }) {
           .from("medidas_corporais")
           .select("*")
           .eq("user_id", user.id)
-          .order("medida_data", { ascending: false }),
+          .order("medida_data", { ascending: false })
+          // Duas medições no mesmo dia: a registrada por último é a atual.
+          .order("criado_em", { ascending: false }),
         supabase
           .from("alimentacao_relatorios")
           .select("*")

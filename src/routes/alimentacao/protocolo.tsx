@@ -452,8 +452,8 @@ const emptyRespostas: ProtocoloRespostas = {
     cintura_cm: null,
   },
   objetivo: {
-    descricao:
-      "Ter uma alimentação mais saudável e chegar no meu peso, BF e massa muscular adequados. Sou falso magro e quero definir o corpo.",
+    // Vazio: cada usuário escreve o próprio objetivo (o exemplo fica no placeholder).
+    descricao: "",
     peso_meta_kg: null,
     bf_meta_pct: null,
   },
@@ -607,6 +607,7 @@ function ProtocoloForm({
           <Textarea
             rows={3}
             value={r.objetivo.descricao}
+            placeholder="Ex.: comer melhor, perder gordura e ganhar massa muscular sem dieta radical"
             onChange={(e) => set("objetivo", { descricao: e.target.value })}
           />
         </Field>

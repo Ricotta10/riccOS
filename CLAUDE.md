@@ -42,7 +42,7 @@ Se houver qualquer dúvida se um workflow pertence ao RICC OS → **não mexer, 
 
 | ID                  | Nome                                          | Status |
 |---------------------|-----------------------------------------------|--------|
-| `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Operação - Central de Comando por Voz` (antigo "Financeiro - Salvar Transações") | 🟢 Publicado (voz da Central; `Roteador de Domínio` separa Financeiro / Academia / Alimentação / Outro — Financeiro e Alimentação têm fluxo (Alimentação cria a refeição `processando` e chama o sub-workflow `Registrar Refeição`), Academia é placeholder; parcelado vira N linhas no nó `RESULTADO FINAL`; o nó `Identificar Usuário` descobre quem falou pelo JWT do app (`Authorization`) — tem fallback **temporário** para `body.user_id` até o app com o header estar no ar) |
+| `TePr3ZKHrd0EIijg`  | `🟢Ricc OS | Operação - Central de Comando por Voz` (antigo "Financeiro - Salvar Transações") | 🟢 Publicado (voz da Central; `Roteador de Domínio` separa Financeiro / Academia / Alimentação / Outro — Financeiro e Alimentação têm fluxo (Alimentação cria a refeição `processando` e chama o sub-workflow `Registrar Refeição`), Academia é placeholder; parcelado vira N linhas no nó `RESULTADO FINAL`; o nó `Identificar Usuário` descobre quem falou pelo JWT do app (`Authorization`) — sem token válido o comando é recusado) |
 | `Qg4qY07wPI9HC8k6`  | `🟢Ricc OS | Financeiro - Gerar Metas com IA` | 🟢 Publicado (roda por usuário — ver "Workflows agendados multiusuário") |
 | `PlwBzdIQVUFQ3rm9`  | `🟢Ricc OS | Financeiro - Gerar Insights de Gastos` | 🟢 Publicado (roda toda segunda 7h, por usuário; envia push reaproveitando a credencial `Supabase - Ricc OS`) |
 | `TiXgtApZDQzt6G16`  | `🟢Ricc OS | Financeiro - Lançar Compra Wallet` | 🟢 Publicado (webhook `riccos-wallet-compra` chamado pela automação "Transação" do Atalhos do iPhone; header `X-Riccos-Token` via credencial `Ricc OS - Webhook Wallet` + header `X-Riccos-Usuario` = `usuarios.user_wallet_token` de quem comprou (nó `Identificar Dono`); sem esse header cai **temporariamente** no Rodrigo até o Atalho dele ser atualizado) |
@@ -255,3 +255,6 @@ componentes em `alimentacao-widgets.tsx`.
   este arquivo nem exibir seus valores em respostas. Ele deve estar no `.gitignore`.
 - Nunca colocar credenciais hardcoded em nós do n8n — usar sempre credenciais do n8n
   ou variáveis de ambiente.
+- A Edge Function `send-push` só aceita a chave **service role** (403 para a anon, que é pública,
+  e para JWT de usuário) — senão qualquer um mandaria push para qualquer usuário. No n8n, chamar
+  sempre com a credencial `Supabase - Ricc OS`.
