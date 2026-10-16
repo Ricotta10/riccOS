@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   LogOut,
   Menu,
+  MessagesSquare,
   NotebookPen,
   Ruler,
   Salad,
@@ -84,6 +85,8 @@ const alimentacaoItems: NavItemDef[] = [
   { title: "Corpo", url: "/alimentacao/corpo", icon: Ruler },
   { title: "Protocolo", url: "/alimentacao/protocolo", icon: ClipboardList },
 ];
+
+const agenteItems: NavItemDef[] = [{ title: "Agente", url: "/agente", icon: MessagesSquare }];
 
 const progressItems: NavItemDef[] = [{ title: "Missões", url: "/missoes", icon: Trophy }];
 
@@ -245,7 +248,10 @@ export function AppSidebar() {
           <SidebarGroup>
             <SidebarGroupLabel>Central</SidebarGroupLabel>
             <SidebarGroupContent>
-              <SidebarMenu className="gap-1">{renderItems(centralItems)}</SidebarMenu>
+              <SidebarMenu className="gap-1">
+                {renderItems(centralItems)}
+                {renderItems(agenteItems)}
+              </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
 
@@ -553,7 +559,8 @@ function NavItemContent({
 }
 
 /**
- * Bottom nav mobile por módulo: Financeiro · Alimentação · (núcleo) · Missões · Menu.
+ * Bottom nav mobile: Financeiro · Alimentação · (núcleo) · Agente · Menu.
+ * Missões fica na sidebar e no Menu — é consulta ocasional.
  * As páginas de cada módulo ficam nas abas do topo (`ModuleTabs`).
  */
 function MobileBottomNav() {
@@ -562,7 +569,7 @@ function MobileBottomNav() {
   const currentPath = state.location.pathname;
   const currentModule = moduleForPath(currentPath);
   const coreActive = currentPath === "/" || currentPath === "/riccos";
-  const missoesActive = currentPath === "/missoes";
+  const agenteActive = currentPath === "/agente";
 
   return (
     <nav
@@ -596,8 +603,8 @@ function MobileBottomNav() {
           </Link>
         </div>
 
-        <Link to="/missoes" className={cn(navItemClass, navTone(missoesActive))}>
-          <NavItemContent icon={Trophy} title="Missões" active={missoesActive} />
+        <Link to="/agente" className={cn(navItemClass, navTone(agenteActive))}>
+          <NavItemContent icon={MessagesSquare} title="Agente" active={agenteActive} />
         </Link>
 
         <button

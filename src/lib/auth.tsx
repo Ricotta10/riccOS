@@ -10,6 +10,8 @@ export interface UserProfile {
   user_telefone?: string;
   user_avatar?: string;
   dia_vencimento?: number | null;
+  /** Modelo preferido no Agente (ver src/lib/agente.ts) */
+  user_modelo_agente?: string | null;
   criado_em?: string;
 }
 
@@ -96,7 +98,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       if (profile.user_id) {
-        await supabase.from("usuarios").update({ dia_vencimento: day }).eq("user_id", profile.user_id);
+        await supabase
+          .from("usuarios")
+          .update({ dia_vencimento: day })
+          .eq("user_id", profile.user_id);
       }
     } catch (err) {
       console.error("Erro ao atualizar dia_vencimento do usuário:", err);
