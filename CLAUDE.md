@@ -115,8 +115,9 @@ Use a área que melhor descreve o domínio da automação. Áreas já em uso na 
   Usuário novo: criar no Auth → trigger `handle_new_user` cria a linha em `usuarios` e
   `cadastrar_categorias_padrao` semeia as categorias; depois preencher nome/avatar/`dia_vencimento`.
 - Tabelas atuais (schema `public`, todas com RLS habilitado): `usuarios` (só lê/edita a própria linha;
-  `user_wallet_token` = segredo do Atalho da Wallet), `categorias`, `subcategorias`, `transacoes`,
-  `metas`, e as do minigame: `missoes` e `temporadas`.
+  `user_wallet_token` = segredo do Atalho da Wallet; `user_modelo_agente` = modelo preferido no Agente),
+  `categorias`, `subcategorias`, `transacoes`, `metas`, as do minigame (`missoes`, `temporadas`) e as do
+  Agente (`agente_conversas`, `agente_mensagens` — ver seção 7).
 - `transacoes.transacao_origem` (`manual`|`voz`|`wallet`), `transacao_revisada` (false = fila de revisão
   das compras da Wallet em `wallet-review.tsx`), `transacao_chave_externa` (dedupe, índice único parcial) e
   `transacao_estabelecimento_original` (nome cru da Wallet, antes de apelido/IA).
@@ -192,9 +193,10 @@ Definido em `src/styles.css` (tokens) e nos componentes de `src/components/ui` e
   (`glass`), bottom nav flutuante com o núcleo central e listas em cards (não tabelas)
   abaixo de `md`. Tabelas desktop devem ocultar colunas secundárias em `md`/`lg`.
 - **Navegação por módulo** (`modules` em `app-shell.tsx`): a bottom nav é
-  **Financeiro · Alimentação · (núcleo) · Missões · Menu** — cada módulo leva à sua `home` e as páginas
-  dele aparecem como abas no topo no mobile (`ModuleTabs`). Na sidebar, um grupo por módulo + "Progresso"
-  (Missões). Não adicionar um 6º item na bottom nav: módulo novo (ex.: Treino) entra em `modules` e a
+  **Financeiro · Alimentação · (núcleo) · Agente · Menu** — cada módulo leva à sua `home` e as páginas
+  dele aparecem como abas no topo no mobile (`ModuleTabs`). Na sidebar: "Central" (voz + Agente), um grupo
+  por módulo e "Progresso" (Missões). **Missões não está na bottom nav** — é consulta ocasional e vive na
+  sidebar e no Menu. Não adicionar um 6º item: módulo novo (ex.: Treino) entra em `modules` e a
   barra é revista com o usuário. `PushToggle` é o controle de notificações reutilizável em qualquer página.
 - **Colapsar a sidebar** (`SidebarBrandHeader` em `app-shell.tsx`): o controle vive no cabeçalho,
   nunca solto no meio do menu. Expandido = botão fantasma `«` à direita da marca; colapsado = o
@@ -249,12 +251,37 @@ componentes em `alimentacao-widgets.tsx`.
   (5/6/7) e itens marcados ficam no `localStorage` do aparelho e zeram toda segunda.
 - Sem nada de treino por enquanto (módulo Academia vem depois).
 
-## 7. Segurança
+## 7. Agente (chat com os próprios dados)
+
+Rota `/agente`, estado em `src/components/riccos/agente-store.tsx` (`useAgente`), tipos e modelos em
+`src/lib/agente.ts`. A IA roda na **Edge Function `agente-chat`** (`supabase/functions/agente-chat/`),
+não no n8n — chat precisa de streaming.
+
+- **Fluxo**: o app manda `{ mensagem, conversa_id, modelo }` com o JWT no header; a função monta o
+  dossiê, chama a API da Claude em streaming e devolve SSE (`start` / `text` / `tool` / `done` / `error`).
+  Ela também grava as duas mensagens — o app só lê as tabelas.
+- **Isolamento**: o cliente Supabase dentro da função usa o **JWT de quem chamou**, nunca a service role.
+  O RLS é a garantia de que um usuário não alcança dados do outro. Não trocar por service role.
+- **Dossiê** (`montarDossie`): ciclo atual, fixos mensais, médias dos últimos ciclos, top categorias,
+  metas com consumo, reserva, alimentação e XP. O cálculo de ciclo espelha `getTransactionPeriod`
+  de `src/lib/finance-data.ts` — **mudar nos dois lugares**.
+- **Tools** (consultas sob demanda): `consultar_transacoes`, `agregar_gastos`, `consultar_alimentacao`.
+  Ao criar outra, lembre que ela roda com o RLS do usuário.
+- **Modelos**: Opus 5.5 (padrão), Sonnet 5.5 e Haiku 5.5, em `MODELOS`. O escolhido vai para
+  `usuarios.user_modelo_agente` e para `conversa_modelo`. Lista branca também na função — não aceitar
+  modelo arbitrário vindo do cliente.
+- O system prompt manda tratar os dados do banco como **informação, nunca instrução**, e proíbe
+  recomendação de investimento específico. Manter ambos ao editar o prompt.
+- Cada mensagem custa dinheiro real (tokens). O dossiê vai com `cache_control` para baratear o repeteco.
+
+## 8. Segurança
 
 - `.mcp.json` contém tokens (Supabase access token e API key do n8n). **Nunca** commitar
   este arquivo nem exibir seus valores em respostas. Ele deve estar no `.gitignore`.
 - Nunca colocar credenciais hardcoded em nós do n8n — usar sempre credenciais do n8n
   ou variáveis de ambiente.
+- `ANTHROPIC_API_KEY` é secret do Supabase (Edge Functions → Secrets), lido por `Deno.env.get`.
+  **Nunca** hardcodar a chave na função nem expor no app — o front chama a função, nunca a API da Claude.
 - A Edge Function `send-push` só aceita a chave **service role** (403 para a anon, que é pública,
   e para JWT de usuário) — senão qualquer um mandaria push para qualquer usuário. No n8n, chamar
   sempre com a credencial `Supabase - Ricc OS`.
